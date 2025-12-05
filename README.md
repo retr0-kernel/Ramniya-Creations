@@ -29,4 +29,4 @@ docker compose -f docker-compose.dev.yml up --build
 ## 📦 Tech Stack
 
 **Backend:** Go + Echo
-**Frontend:** React + TypeScript + Vite# Ramniya-Creations
+**Frontend:** React + TypeScript + Vite
