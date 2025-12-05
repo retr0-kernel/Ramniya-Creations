@@ -263,3 +263,28 @@ func (r *AuthRepository) UpdatePassword(ctx context.Context, userID uuid.UUID, n
 
 	return nil
 }
+
+// LinkGoogleID links a Google ID to an existing user
+func (r *AuthRepository) LinkGoogleID(ctx context.Context, userID uuid.UUID, googleID string) error {
+	query := `
+		UPDATE users
+		SET google_id = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, googleID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to link Google ID: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}

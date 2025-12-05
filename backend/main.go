@@ -14,8 +14,12 @@ import (
 	"github.com/ramniya/ramniya-backend/auth"
 	"github.com/ramniya/ramniya-backend/config"
 	"github.com/ramniya/ramniya-backend/database"
+	"github.com/ramniya/ramniya-backend/email"
+	"github.com/ramniya/ramniya-backend/handlers"
+	"github.com/ramniya/ramniya-backend/jwt"
 	"github.com/ramniya/ramniya-backend/logger"
 	"github.com/ramniya/ramniya-backend/migrate"
+	"github.com/ramniya/ramniya-backend/oauth"
 	"go.uber.org/zap"
 )
 
@@ -48,9 +52,68 @@ func main() {
 
 	// Check for CLI commands
 	if len(os.Args) > 1 {
-		handleCLICommands(os.Args[1:])
+		handleCLICommands(os.Args[1:], cfg)
 		return
 	}
+
+	// Initialize services
+	authRepo := auth.NewAuthRepository(database.DB)
+	tokenService := jwt.NewTokenService(
+		cfg.JWTSecret,
+		time.Duration(cfg.JWTExpiryHours)*time.Hour,
+		30*24*time.Hour, // 30 days for refresh token
+	)
+
+	// Initialize email sender
+	var emailSender email.EmailSender
+	if cfg.SMTPUsername != "" && cfg.SMTPPassword != "" {
+		emailSender = email.NewSMTPEmailSender(email.SMTPConfig{
+			Host:     cfg.SMTPHost,
+			Port:     cfg.SMTPPort,
+			Username: cfg.SMTPUsername,
+			Password: cfg.SMTPPassword,
+			From:     cfg.SMTPFrom,
+		}, logger.Log)
+		logger.Info("SMTP email sender initialized")
+	} else {
+		fileEmailSender, err := email.NewFileEmailSender("./dev-emails", logger.Log)
+		if err != nil {
+			logger.Fatal("Failed to create file email sender", zap.Error(err))
+		}
+		emailSender = fileEmailSender
+		logger.Warn("Using file-based email sender (dev mode) - emails will be written to ./dev-emails/")
+	}
+
+	// Initialize OAuth service
+	var oauthService *oauth.GoogleOAuthService
+	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
+		oauthService = oauth.NewGoogleOAuthService(oauth.GoogleOAuthConfig{
+			ClientID:     cfg.GoogleClientID,
+			ClientSecret: cfg.GoogleClientSecret,
+			RedirectURL:  cfg.GoogleRedirectURL,
+		})
+		logger.Info("Google OAuth initialized")
+	} else {
+		logger.Warn("Google OAuth not configured - OAuth endpoints will not work")
+	}
+
+	// Initialize handlers
+	baseURL := fmt.Sprintf("http://localhost:%s", cfg.Port)
+	frontendURL := "http://localhost:3000"
+	if cfg.IsProduction() {
+		baseURL = "https://api.yourdomain.com" // Configure for production
+		frontendURL = "https://yourdomain.com"
+	}
+
+	authHandler := handlers.NewAuthHandler(
+		authRepo,
+		tokenService,
+		emailSender,
+		oauthService,
+		logger.Log,
+		baseURL,
+		frontendURL,
+	)
 
 	// Initialize Echo
 	e := echo.New()
@@ -75,12 +138,11 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
-	// Initialize repositories
-	authRepo := auth.NewAuthRepository(database.DB)
+	// Rate limiting (simple in-memory)
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
 
 	// Health check endpoint
 	e.GET("/health", func(c echo.Context) error {
-		// Check database connection
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
 		defer cancel()
 
@@ -98,31 +160,17 @@ func main() {
 		})
 	})
 
-	// Example auth endpoints (to be expanded)
-	e.POST("/auth/register", func(c echo.Context) error {
-		var req struct {
-			Email    string  `json:"email"`
-			Name     *string `json:"name"`
-			Password string  `json:"password"`
-		}
+	// Auth endpoints
+	authGroup := e.Group("/api/auth")
+	authGroup.POST("/register", authHandler.Register)
+	authGroup.GET("/verify", authHandler.VerifyEmail)
+	authGroup.POST("/login", authHandler.Login)
 
-		if err := c.Bind(&req); err != nil {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request"})
-		}
-
-		user, err := authRepo.CreateUser(c.Request().Context(), auth.CreateUserInput{
-			Email:    req.Email,
-			Name:     req.Name,
-			Password: &req.Password,
-		})
-
-		if err != nil {
-			logger.Error("Failed to create user", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
-		}
-
-		return c.JSON(http.StatusCreated, user)
-	})
+	// OAuth endpoints (if configured)
+	if oauthService != nil {
+		authGroup.GET("/oauth/google", authHandler.GetGoogleAuthURL)
+		authGroup.GET("/oauth/google/callback", authHandler.GoogleOAuthCallback)
+	}
 
 	// Start server with graceful shutdown
 	go func() {
@@ -150,7 +198,7 @@ func main() {
 	logger.Info("Server stopped gracefully")
 }
 
-func handleCLICommands(args []string) {
+func handleCLICommands(args []string, cfg *config.Config) {
 	if len(args) == 0 {
 		return
 	}
@@ -214,7 +262,6 @@ func runMigrations(direction string) {
 		}
 		logger.Info("Migrations completed successfully")
 	case "down":
-		// Down migrations not implemented in simple migrator
 		logger.Warn("Down migrations not implemented yet. Use golang-migrate for down migrations.")
 	}
 }
