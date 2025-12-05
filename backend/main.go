@@ -20,6 +20,8 @@ import (
 	"github.com/ramniya/ramniya-backend/logger"
 	"github.com/ramniya/ramniya-backend/migrate"
 	"github.com/ramniya/ramniya-backend/oauth"
+	"github.com/ramniya/ramniya-backend/products"
+	"github.com/ramniya/ramniya-backend/upload"
 	"go.uber.org/zap"
 )
 
@@ -56,8 +58,11 @@ func main() {
 		return
 	}
 
-	// Initialize services
+	// Initialize repositories
 	authRepo := auth.NewAuthRepository(database.DB)
+	productRepo := products.NewProductRepository(database.DB)
+
+	// Initialize JWT token service
 	tokenService := jwt.NewTokenService(
 		cfg.JWTSecret,
 		time.Duration(cfg.JWTExpiryHours)*time.Hour,
@@ -97,14 +102,29 @@ func main() {
 		logger.Warn("Google OAuth not configured - OAuth endpoints will not work")
 	}
 
-	// Initialize handlers
+	// Initialize upload service with environment-based directory
+	uploadDir := "./uploads"
+	if cfg.IsProduction() {
+		uploadDir = "/var/www/ramniya/uploads"
+	}
+	uploadService, err := upload.NewUploadService(uploadDir, logger.Log)
+	if err != nil {
+		logger.Fatal("Failed to create upload service", zap.Error(err))
+	}
+	logger.Info("Upload service initialized",
+		zap.String("directory", uploadDir),
+		zap.String("environment", cfg.Environment),
+	)
+
+	// Determine base URLs
 	baseURL := fmt.Sprintf("http://localhost:%s", cfg.Port)
 	frontendURL := "http://localhost:3000"
 	if cfg.IsProduction() {
-		baseURL = "https://api.yourdomain.com" // Configure for production
+		baseURL = "https://api.yourdomain.com"
 		frontendURL = "https://yourdomain.com"
 	}
 
+	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(
 		authRepo,
 		tokenService,
@@ -113,6 +133,13 @@ func main() {
 		logger.Log,
 		baseURL,
 		frontendURL,
+	)
+
+	productHandler := handlers.NewProductHandler(
+		productRepo,
+		uploadService,
+		logger.Log,
+		baseURL,
 	)
 
 	// Initialize Echo
@@ -138,8 +165,14 @@ func main() {
 	e.Use(middleware.Recover())
 	e.Use(middleware.CORS())
 
-	// Rate limiting (simple in-memory)
+	// Rate limiting
 	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
+
+	// Serve uploaded files in development
+	if !cfg.IsProduction() {
+		e.Static("/uploads", "./uploads")
+		logger.Info("Serving uploads directory", zap.String("path", "/uploads"))
+	}
 
 	// Health check endpoint
 	e.GET("/health", func(c echo.Context) error {
@@ -160,7 +193,7 @@ func main() {
 		})
 	})
 
-	// Auth endpoints
+	// Auth endpoints (public)
 	authGroup := e.Group("/api/auth")
 	authGroup.POST("/register", authHandler.Register)
 	authGroup.GET("/verify", authHandler.VerifyEmail)
@@ -171,6 +204,20 @@ func main() {
 		authGroup.GET("/oauth/google", authHandler.GetGoogleAuthURL)
 		authGroup.GET("/oauth/google/callback", authHandler.GoogleOAuthCallback)
 	}
+
+	// Public product endpoints
+	e.GET("/api/products", productHandler.ListProducts)
+	e.GET("/api/products/:id", productHandler.GetProduct)
+
+	// Admin endpoints (protected)
+	adminGroup := e.Group("/api/admin")
+	adminGroup.Use(AuthMiddleware(tokenService))
+
+	// Admin product endpoints
+	adminGroup.POST("/products", productHandler.CreateProduct)
+	adminGroup.POST("/products/:id/images", productHandler.UploadProductImages)
+	adminGroup.PUT("/products/:id", productHandler.UpdateProduct)
+	adminGroup.DELETE("/products/:id", productHandler.DeleteProduct)
 
 	// Start server with graceful shutdown
 	go func() {
@@ -196,6 +243,48 @@ func main() {
 	}
 
 	logger.Info("Server stopped gracefully")
+}
+
+// AuthMiddleware validates JWT tokens for protected routes
+func AuthMiddleware(tokenService *jwt.TokenService) echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Get token from Authorization header
+			authHeader := c.Request().Header.Get("Authorization")
+			if authHeader == "" {
+				return c.JSON(http.StatusUnauthorized, map[string]string{
+					"error": "Missing authorization header",
+				})
+			}
+
+			// Extract token (format: "Bearer <token>")
+			tokenString := ""
+			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
+				tokenString = authHeader[7:]
+			} else {
+				return c.JSON(http.StatusUnauthorized, map[string]string{
+					"error": "Invalid authorization header format",
+				})
+			}
+
+			// Verify token
+			claims, err := tokenService.VerifyToken(tokenString, jwt.PurposeAccess)
+			if err != nil {
+				logger.Log.Warn("Invalid token",
+					zap.Error(err),
+				)
+				return c.JSON(http.StatusUnauthorized, map[string]string{
+					"error": "Invalid or expired token",
+				})
+			}
+
+			// Set user info in context
+			c.Set("user_id", claims.UserID)
+			c.Set("user_email", claims.Email)
+
+			return next(c)
+		}
+	}
 }
 
 func handleCLICommands(args []string, cfg *config.Config) {
