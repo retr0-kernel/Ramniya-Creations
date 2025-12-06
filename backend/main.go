@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/ramniya/ramniya-backend/auth"
 	"github.com/ramniya/ramniya-backend/config"
 	"github.com/ramniya/ramniya-backend/database"
@@ -18,9 +18,12 @@ import (
 	"github.com/ramniya/ramniya-backend/handlers"
 	"github.com/ramniya/ramniya-backend/jwt"
 	"github.com/ramniya/ramniya-backend/logger"
+	"github.com/ramniya/ramniya-backend/middleware"
 	"github.com/ramniya/ramniya-backend/migrate"
 	"github.com/ramniya/ramniya-backend/oauth"
+	"github.com/ramniya/ramniya-backend/orders"
 	"github.com/ramniya/ramniya-backend/products"
+	"github.com/ramniya/ramniya-backend/razorpay"
 	"github.com/ramniya/ramniya-backend/upload"
 	"go.uber.org/zap"
 )
@@ -61,6 +64,7 @@ func main() {
 	// Initialize repositories
 	authRepo := auth.NewAuthRepository(database.DB)
 	productRepo := products.NewProductRepository(database.DB)
+	orderRepo := orders.NewOrderRepository(database.DB)
 
 	// Initialize JWT token service
 	tokenService := jwt.NewTokenService(
@@ -116,12 +120,24 @@ func main() {
 		zap.String("environment", cfg.Environment),
 	)
 
+	// Initialize Razorpay service
+	var razorpayService *razorpay.RazorpayService
+	if cfg.RazorpayKeyID != "" && cfg.RazorpayKeySecret != "" {
+		razorpayService = razorpay.NewRazorpayService(razorpay.RazorpayConfig{
+			KeyID:     cfg.RazorpayKeyID,
+			KeySecret: cfg.RazorpayKeySecret,
+		}, logger.Log)
+		logger.Info("Razorpay service initialized")
+	} else {
+		logger.Fatal("Razorpay credentials not configured - add RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET to .env")
+	}
+
 	// Determine base URLs
 	baseURL := fmt.Sprintf("http://localhost:%s", cfg.Port)
 	frontendURL := "http://localhost:3000"
 	if cfg.IsProduction() {
-		baseURL = "https://api.yourdomain.com"
-		frontendURL = "https://yourdomain.com"
+		baseURL = "https://api.ramniya.com"
+		frontendURL = "https://ramniya.com"
 	}
 
 	// Initialize handlers
@@ -142,17 +158,29 @@ func main() {
 		baseURL,
 	)
 
+	orderHandler := handlers.NewOrderHandler(
+		orderRepo,
+		razorpayService,
+		logger.Log,
+		cfg.RazorpayKeyID,
+	)
+
+	adminOrderHandler := handlers.NewAdminOrderHandler(
+		orderRepo,
+		logger.Log,
+	)
+
 	// Initialize Echo
 	e := echo.New()
 	e.HideBanner = true
 	e.HidePort = true
 
 	// Middleware
-	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+	e.Use(echomiddleware.RequestLoggerWithConfig(echomiddleware.RequestLoggerConfig{
 		LogURI:    true,
 		LogStatus: true,
 		LogError:  true,
-		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+		LogValuesFunc: func(c echo.Context, v echomiddleware.RequestLoggerValues) error {
 			logger.Info("Request",
 				zap.String("method", c.Request().Method),
 				zap.String("uri", v.URI),
@@ -162,11 +190,11 @@ func main() {
 			return nil
 		},
 	}))
-	e.Use(middleware.Recover())
-	e.Use(middleware.CORS())
+	e.Use(echomiddleware.Recover())
+	e.Use(echomiddleware.CORS())
 
 	// Rate limiting
-	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20)))
+	e.Use(echomiddleware.RateLimiter(echomiddleware.NewRateLimiterMemoryStore(20)))
 
 	// Serve uploaded files in development
 	if !cfg.IsProduction() {
@@ -209,15 +237,39 @@ func main() {
 	e.GET("/api/products", productHandler.ListProducts)
 	e.GET("/api/products/:id", productHandler.GetProduct)
 
-	// Admin endpoints (protected)
+	// Protected user endpoints (require authentication)
+	userGroup := e.Group("/api")
+	userGroup.Use(AuthMiddleware(tokenService))
+
+	// Order endpoints for users
+	userGroup.GET("/orders", orderHandler.ListOrders)
+	userGroup.GET("/orders/:id", orderHandler.GetOrder)
+
+	// Checkout endpoints
+	checkoutGroup := e.Group("/api/checkout")
+	checkoutGroup.Use(AuthMiddleware(tokenService))
+	checkoutGroup.POST("/create-order", orderHandler.CreateOrder)
+	checkoutGroup.POST("/verify-payment", orderHandler.VerifyPayment)
+
+	// Webhook endpoint (public, but signature verified)
+	e.POST("/api/webhooks/razorpay", orderHandler.RazorpayWebhook)
+
+	// Admin endpoints (protected - require admin role)
 	adminGroup := e.Group("/api/admin")
 	adminGroup.Use(AuthMiddleware(tokenService))
+	adminGroup.Use(middleware.RequireAdmin(database.DB, logger.Log))
 
 	// Admin product endpoints
 	adminGroup.POST("/products", productHandler.CreateProduct)
 	adminGroup.POST("/products/:id/images", productHandler.UploadProductImages)
 	adminGroup.PUT("/products/:id", productHandler.UpdateProduct)
 	adminGroup.DELETE("/products/:id", productHandler.DeleteProduct)
+
+	// Admin order endpoints
+	adminGroup.GET("/orders", adminOrderHandler.ListAllOrders)
+	adminGroup.GET("/orders/:id", adminOrderHandler.GetOrderAdmin)
+	adminGroup.PUT("/orders/:id/status", adminOrderHandler.UpdateOrderStatusAdmin)
+	adminGroup.GET("/orders/stats", adminOrderHandler.GetOrderStats)
 
 	// Start server with graceful shutdown
 	go func() {

@@ -4,119 +4,93 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+
+	"github.com/joho/godotenv"
 )
 
+// Config holds application configuration
 type Config struct {
-	// Server
-	Port string
-
-	// Database
-	DatabaseURL string
-
-	// Authentication
+	Environment    string
+	Port           string
+	DatabaseURL    string
 	JWTSecret      string
 	JWTExpiryHours int
 
-	// OAuth - Google
-	GoogleClientID     string
-	GoogleClientSecret string
-	GoogleRedirectURL  string
-
-	// Payment - Razorpay
-	RazorpayKeyID     string
-	RazorpayKeySecret string
-
-	// Email - SMTP
+	// SMTP Configuration
 	SMTPHost     string
 	SMTPPort     int
 	SMTPUsername string
 	SMTPPassword string
 	SMTPFrom     string
 
-	// Environment
-	Environment string
+	// Google OAuth
+	GoogleClientID     string
+	GoogleClientSecret string
+	GoogleRedirectURL  string
+
+	// Razorpay Configuration
+	RazorpayKeyID     string
+	RazorpayKeySecret string
 }
 
-// Load reads configuration from environment variables with sensible defaults
+// Load loads configuration from environment variables
 func Load() (*Config, error) {
-	cfg := &Config{
-		// Server defaults
-		Port: getEnv("PORT", "8080"),
+	// Load .env file if it exists (ignore error in production)
+	godotenv.Load()
 
-		// Database
-		DatabaseURL: getEnv("DATABASE_URL", "postgres://postgres:postgres@localhost:5432/ramniya_creations?sslmode=disable"),
+	config := &Config{
+		Environment:    getEnv("ENVIRONMENT", "development"),
+		Port:           getEnv("PORT", "8080"),
+		DatabaseURL:    getEnv("DATABASE_URL", ""),
+		JWTSecret:      getEnv("JWT_SECRET", ""),
+		JWTExpiryHours: getEnvAsInt("JWT_EXPIRY_HOURS", 168), // 7 days
 
-		// Authentication
-		JWTSecret:      getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
-		JWTExpiryHours: getEnvAsInt("JWT_EXPIRY_HOURS", 24),
-
-		// OAuth - Google
-		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
-		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
-		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", "http://localhost:8080/auth/google/callback"),
-
-		// Payment - Razorpay
-		RazorpayKeyID:     getEnv("RAZORPAY_KEY_ID", ""),
-		RazorpayKeySecret: getEnv("RAZORPAY_KEY_SECRET", ""),
-
-		// Email - SMTP
-		SMTPHost:     getEnv("SMTP_HOST", "smtp.gmail.com"),
+		// SMTP
+		SMTPHost:     getEnv("SMTP_HOST", ""),
 		SMTPPort:     getEnvAsInt("SMTP_PORT", 587),
 		SMTPUsername: getEnv("SMTP_USERNAME", ""),
 		SMTPPassword: getEnv("SMTP_PASSWORD", ""),
 		SMTPFrom:     getEnv("SMTP_FROM", "noreply@ramniyacreations.com"),
 
-		// Environment
-		Environment: getEnv("ENVIRONMENT", "development"),
+		// Google OAuth
+		GoogleClientID:     getEnv("GOOGLE_CLIENT_ID", ""),
+		GoogleClientSecret: getEnv("GOOGLE_CLIENT_SECRET", ""),
+		GoogleRedirectURL:  getEnv("GOOGLE_REDIRECT_URL", ""),
+
+		// Razorpay
+		RazorpayKeyID:     getEnv("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret: getEnv("RAZORPAY_KEY_SECRET", ""),
 	}
 
-	// Validate required fields in production
-	if cfg.Environment == "production" {
-		if err := cfg.Validate(); err != nil {
-			return nil, err
+	// Validate required fields
+	if config.DatabaseURL == "" {
+		return nil, fmt.Errorf("DATABASE_URL is required")
+	}
+
+	if config.JWTSecret == "" {
+		return nil, fmt.Errorf("JWT_SECRET is required")
+	}
+
+	// Razorpay is required for checkout
+	if config.RazorpayKeyID == "" || config.RazorpayKeySecret == "" {
+		// Only warn in development, fail in production
+		if config.IsProduction() {
+			return nil, fmt.Errorf("RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET are required")
 		}
 	}
 
-	return cfg, nil
+	return config, nil
 }
 
-// Validate checks if required configuration values are set
-func (c *Config) Validate() error {
-	if c.JWTSecret == "your-secret-key-change-in-production" {
-		return fmt.Errorf("JWT_SECRET must be set in production")
-	}
-
-	if c.DatabaseURL == "" {
-		return fmt.Errorf("DATABASE_URL must be set")
-	}
-
-	// Warn about missing optional configs
-	if c.GoogleClientID == "" {
-		fmt.Println("WARNING: GOOGLE_CLIENT_ID not set - Google OAuth will not work")
-	}
-
-	if c.RazorpayKeyID == "" {
-		fmt.Println("WARNING: RAZORPAY_KEY_ID not set - Payment integration will not work")
-	}
-
-	if c.SMTPUsername == "" {
-		fmt.Println("WARNING: SMTP_USERNAME not set - Email sending will not work")
-	}
-
-	return nil
-}
-
-// IsDevelopment returns true if running in development mode
-func (c *Config) IsDevelopment() bool {
-	return c.Environment == "development"
-}
-
-// IsProduction returns true if running in production mode
+// IsProduction returns true if running in production environment
 func (c *Config) IsProduction() bool {
 	return c.Environment == "production"
 }
 
-// Helper functions
+// IsDevelopment returns true if running in development environment
+func (c *Config) IsDevelopment() bool {
+	return c.Environment == "development"
+}
 
 func getEnv(key, defaultValue string) string {
 	if value := os.Getenv(key); value != "" {
@@ -127,8 +101,14 @@ func getEnv(key, defaultValue string) string {
 
 func getEnvAsInt(key string, defaultValue int) int {
 	valueStr := os.Getenv(key)
-	if value, err := strconv.Atoi(valueStr); err == nil {
-		return value
+	if valueStr == "" {
+		return defaultValue
 	}
-	return defaultValue
+
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return defaultValue
+	}
+
+	return value
 }
