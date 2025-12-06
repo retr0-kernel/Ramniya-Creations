@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Form, Badge, Carousel } from 'react-bootstrap';
+import { Container, Row, Col, Button, Form, Badge } from 'react-bootstrap';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { fetchProductById } from '../features/products/productsSlice';
 import { addToCart } from '../features/cart/cartSlice';
 import VariantSelector from '../components/products/VariantSelector';
+import ProductImageZoom from '../components/products/ProductImageZoom';
 import Spinner from '../components/common/Spinner';
 import ErrorAlert from '../components/common/ErrorAlert';
 import { formatPrice } from '../utils/formatters';
@@ -70,106 +71,159 @@ const ProductDetail: React.FC = () => {
         <Container className="py-5">
             <Row>
                 <Col lg={6} className="mb-4 mb-lg-0">
-                    {product.images.length > 0 ? (
-                        <Carousel>
-                            {product.images
-                                .sort((a, b) => a.display_order - b.display_order)
-                                .map((image) => (
-                                    <Carousel.Item key={image.id}>
-                                        <img
-                                            src={image.url}
-                                            alt={product.title}
-                                            className="d-block w-100 rounded"
-                                            style={{ height: '500px', objectFit: 'cover' }}
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = '/placeholder.jpg';
-                                            }}
-                                        />
-                                    </Carousel.Item>
-                                ))}
-                        </Carousel>
-                    ) : (
-                        <img
-                            src="/placeholder.jpg"
-                            alt={product.title}
-                            className="w-100 rounded"
-                            style={{ height: '500px', objectFit: 'cover' }}
-                        />
-                    )}
+                    <ProductImageZoom images={product.images} title={product.title} />
                 </Col>
 
                 <Col lg={6}>
-                    <h1 className="mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>
-                        {product.title}
-                    </h1>
+                    <div className="product-details">
+                        <h1 className="mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>
+                            {product.title}
+                        </h1>
 
-                    <div className="price mb-3" style={{ fontSize: '2rem' }}>
-                        {formatPrice(currentPrice)}
-                    </div>
-
-                    <p className="text-muted mb-4">{product.description}</p>
-
-                    {product.variants.length > 0 && (
-                        <VariantSelector
-                            variants={product.variants}
-                            selectedVariant={selectedVariant}
-                            onSelect={setSelectedVariant}
-                        />
-                    )}
-
-                    <Form.Group className="mb-4">
-                        <Form.Label>Quantity</Form.Label>
-                        <Form.Control
-                            type="number"
-                            min="1"
-                            max={selectedVariant?.stock || 99}
-                            value={quantity}
-                            onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                            style={{ width: '100px' }}
-                            disabled={isOutOfStock}
-                        />
-                    </Form.Group>
-
-                    {isOutOfStock ? (
-                        <Badge bg="danger" className="mb-3 p-2">
-                            Out of Stock
-                        </Badge>
-                    ) : (
-                        <div className="d-flex gap-3 mb-4">
-                            <Button
-                                variant="outline-primary"
-                                size="lg"
-                                onClick={handleAddToCart}
-                                disabled={isOutOfStock}
-                                className="flex-grow-1"
-                            >
-                                {addedToCart ? 'Added to Cart ✓' : 'Add to Cart'}
-                            </Button>
-                            <Button
-                                variant="primary"
-                                size="lg"
-                                onClick={handleBuyNow}
-                                disabled={isOutOfStock}
-                                className="flex-grow-1"
-                            >
-                                Buy Now
-                            </Button>
+                        <div className="d-flex align-items-center gap-3 mb-3">
+                            <div className="price" style={{ fontSize: '2rem' }}>
+                                {formatPrice(currentPrice)}
+                            </div>
+                            {selectedVariant && selectedVariant.price_modifier !== 0 && (
+                                <div className="price strike">
+                                    {formatPrice(product.price)}
+                                </div>
+                            )}
                         </div>
-                    )}
 
-                    {product.metadata && Object.keys(product.metadata).length > 0 && (
+                        <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                            <p className="text-muted mb-0">{product.description}</p>
+                        </div>
+
+                        {product.variants.length > 0 && (
+                            <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                                <VariantSelector
+                                    variants={product.variants}
+                                    selectedVariant={selectedVariant}
+                                    onSelect={setSelectedVariant}
+                                />
+                            </div>
+                        )}
+
+                        <Form.Group className="mb-4">
+                            <Form.Label className="fw-semibold">Quantity</Form.Label>
+                            <div className="d-flex align-items-center gap-3">
+                                <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                    disabled={isOutOfStock || quantity <= 1}
+                                >
+                                    −
+                                </Button>
+                                <Form.Control
+                                    type="number"
+                                    min="1"
+                                    max={selectedVariant?.stock || 99}
+                                    value={quantity}
+                                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                                    style={{ width: '80px', textAlign: 'center' }}
+                                    disabled={isOutOfStock}
+                                />
+                                <Button
+                                    variant="outline-secondary"
+                                    size="sm"
+                                    onClick={() => setQuantity(Math.min(selectedVariant?.stock || 99, quantity + 1))}
+                                    disabled={isOutOfStock || quantity >= (selectedVariant?.stock || 99)}
+                                >
+                                    +
+                                </Button>
+                                {selectedVariant && (
+                                    <span className="text-muted small">
+                    {selectedVariant.stock} available
+                  </span>
+                                )}
+                            </div>
+                        </Form.Group>
+
+                        {isOutOfStock ? (
+                            <Badge bg="danger" className="mb-3 p-3 d-block text-center" style={{ fontSize: '1rem' }}>
+                                Out of Stock
+                            </Badge>
+                        ) : (
+                            <div className="d-grid gap-3 mb-4">
+                                <Button
+                                    variant="primary"
+                                    size="lg"
+                                    onClick={handleBuyNow}
+                                    disabled={isOutOfStock}
+                                >
+                                    Buy Now
+                                </Button>
+                                <Button
+                                    variant="outline-primary"
+                                    size="lg"
+                                    onClick={handleAddToCart}
+                                    disabled={isOutOfStock}
+                                >
+                                    {addedToCart ? (
+                                        <>
+                                            <svg
+                                                width="20"
+                                                height="20"
+                                                viewBox="0 0 24 24"
+                                                fill="none"
+                                                stroke="currentColor"
+                                                strokeWidth="2"
+                                                className="me-2"
+                                            >
+                                                <polyline points="20 6 9 17 4 12" />
+                                            </svg>
+                                            Added to Cart
+                                        </>
+                                    ) : (
+                                        'Add to Cart'
+                                    )}
+                                </Button>
+                            </div>
+                        )}
+
+                        {product.metadata && Object.keys(product.metadata).length > 0 && (
+                            <div className="mt-4 p-4 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
+                                <h5 className="mb-3">Product Details</h5>
+                                <ul className="list-unstyled mb-0">
+                                    {Object.entries(product.metadata).map(([key, value]) => (
+                                        <li key={key} className="mb-2 d-flex">
+                                            <strong className="text-capitalize me-2" style={{ minWidth: '120px' }}>
+                                                {key}:
+                                            </strong>
+                                            <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        {/* Features */}
                         <div className="mt-4">
-                            <h5 className="mb-3">Product Details</h5>
-                            <ul className="list-unstyled">
-                                {Object.entries(product.metadata).map(([key, value]) => (
-                                    <li key={key} className="mb-2">
-                                        <strong className="text-capitalize">{key}:</strong>{' '}
-                                        {typeof value === 'object' ? JSON.stringify(value) : String(value)}
-                                    </li>
-                                ))}
-                            </ul>
+                            <div className="row g-3">
+                                <div className="col-6">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
+                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                        </svg>
+                                        <small>Secure Payment</small>
+                                    </div>
+                                </div>
+                                <div className="col-6">
+                                    <div className="d-flex align-items-center gap-2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
+                                            <rect x="1" y="3" width="15" height="13" />
+                                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+                                            <circle cx="5.5" cy="18.5" r="2.5" />
+                                            <circle cx="18.5" cy="18.5" r="2.5" />
+                                        </svg>
+                                        <small>Fast Delivery</small>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    )}
+                    </div>
                 </Col>
             </Row>
         </Container>

@@ -1,50 +1,44 @@
-// Email validation
 export const isValidEmail = (email: string): boolean => {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
 };
 
-// Phone validation (Indian format)
 export const isValidPhone = (phone: string): boolean => {
-    const phoneRegex = /^(\+91)?[6-9]\d{9}$/;
-    return phoneRegex.test(phone.replace(/[\s-]/g, ''));
+    // Indian phone format: +91-XXXXXXXXXX or 10 digits
+    const phoneRegex = /^(\+91[-\s]?)?[0]?(91)?[6789]\d{9}$/;
+    return phoneRegex.test(phone.replace(/\s/g, ''));
 };
 
-// Pincode validation (Indian)
 export const isValidPincode = (pincode: string): boolean => {
+    // Indian pincode: 6 digits
     const pincodeRegex = /^[1-9][0-9]{5}$/;
     return pincodeRegex.test(pincode);
 };
 
-// Password validation
 export const isValidPassword = (password: string): boolean => {
     // At least 8 characters, 1 uppercase, 1 lowercase, 1 number
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
-    return passwordRegex.test(password);
+    if (password.length < 8) return false;
+    if (!/[A-Z]/.test(password)) return false;
+    if (!/[a-z]/.test(password)) return false;
+    if (!/[0-9]/.test(password)) return false;
+    return true;
 };
 
-// Name validation
-export const isValidName = (name: string): boolean => {
-    return name.trim().length >= 2;
+export const getPasswordStrength = (password: string): 'weak' | 'medium' | 'strong' => {
+    let strength = 0;
+
+    if (password.length >= 8) strength++;
+    if (password.length >= 12) strength++;
+    if (/[a-z]/.test(password)) strength++;
+    if (/[A-Z]/.test(password)) strength++;
+    if (/[0-9]/.test(password)) strength++;
+    if (/[^A-Za-z0-9]/.test(password)) strength++;
+
+    if (strength <= 2) return 'weak';
+    if (strength <= 4) return 'medium';
+    return 'strong';
 };
 
-// Get password strength
-export const getPasswordStrength = (
-    password: string
-): 'weak' | 'medium' | 'strong' => {
-    if (password.length < 6) return 'weak';
-    if (password.length < 8) return 'medium';
-    if (
-        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(
-            password
-        )
-    ) {
-        return 'strong';
-    }
-    return 'medium';
-};
-
-// Validate shipping address
 export interface AddressErrors {
     name?: string;
     phone?: string;

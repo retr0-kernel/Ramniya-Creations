@@ -106,6 +106,12 @@ func main() {
 
 	// Initialize OAuth service
 	var oauthService *oauth.GoogleOAuthService
+	//oauthService := oauth.NewGoogleOAuthService(
+	//	cfg.GoogleClientID,
+	//	cfg.GoogleClientSecret,
+	//	"http://localhost:8080/api/auth/oauth/google/callback", // Backend callback
+	//	logger.Log,
+	//)
 	if cfg.GoogleClientID != "" && cfg.GoogleClientSecret != "" {
 		oauthService = oauth.NewGoogleOAuthService(oauth.GoogleOAuthConfig{
 			ClientID:     cfg.GoogleClientID,
@@ -327,6 +333,10 @@ func main() {
 	adminGroup.GET("/orders/:id", adminOrderHandler.GetOrderAdmin)
 	adminGroup.PUT("/orders/:id/status", adminOrderHandler.UpdateOrderStatusAdmin)
 	adminGroup.GET("/orders/stats", adminOrderHandler.GetOrderStats)
+
+	// OAuth endpoints (if configured)
+	//auth.GET("/oauth/google", authHandler.GetGoogleAuthURL)
+	//auth.GET("/oauth/google/callback", authHandler.GoogleOAuthCallback)
 
 	// Start server with graceful shutdown
 	go func() {

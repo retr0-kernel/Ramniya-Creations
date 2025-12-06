@@ -4,8 +4,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { createOrder, verifyPayment } from '../features/orders/ordersSlice';
 import { clearCart } from '../features/cart/cartSlice';
-import CartSummary from '../components/cart/CartSummary';
 import { validateAddress } from '../utils/validators';
+import { formatPrice } from '../utils/formatters';
 import { ShippingAddress, RazorpayOptions, RazorpayResponse } from '../types';
 
 const Checkout: React.FC = () => {
@@ -26,7 +26,6 @@ const Checkout: React.FC = () => {
         country: 'India',
     });
 
-    // CHANGED: Use AddressErrors type instead of Record<string, string>
     const [errors, setErrors] = useState<{
         name?: string;
         phone?: string;
@@ -96,6 +95,7 @@ const Checkout: React.FC = () => {
                     } catch (error) {
                         console.error('Payment verification failed:', error);
                         alert('Payment verification failed. Please contact support.');
+                        setProcessing(false);
                     }
                 },
                 prefill: {
@@ -128,6 +128,9 @@ const Checkout: React.FC = () => {
     }
 
     const itemsCount = items.reduce((count, item) => count + item.quantity, 0);
+    const shippingCost = total > 500000 ? 0 : 10000;
+    const tax = Math.round(total * 0.18);
+    const grandTotal = total + shippingCost + tax;
 
     return (
         <Container className="py-4">
@@ -145,7 +148,7 @@ const Checkout: React.FC = () => {
                                 <Row>
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Full Name *</Form.Label>
+                                            <Form.Label className="fw-semibold">Full Name *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="name"
@@ -162,7 +165,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Phone Number *</Form.Label>
+                                            <Form.Label className="fw-semibold">Phone Number *</Form.Label>
                                             <Form.Control
                                                 type="tel"
                                                 name="phone"
@@ -180,7 +183,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={12}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Address Line 1 *</Form.Label>
+                                            <Form.Label className="fw-semibold">Address Line 1 *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="line1"
@@ -198,7 +201,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={12}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Address Line 2</Form.Label>
+                                            <Form.Label className="fw-semibold">Address Line 2</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="line2"
@@ -211,7 +214,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>City *</Form.Label>
+                                            <Form.Label className="fw-semibold">City *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="city"
@@ -228,7 +231,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>State *</Form.Label>
+                                            <Form.Label className="fw-semibold">State *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="state"
@@ -245,7 +248,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Pincode *</Form.Label>
+                                            <Form.Label className="fw-semibold">Pincode *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="pincode"
@@ -263,7 +266,7 @@ const Checkout: React.FC = () => {
 
                                     <Col md={6}>
                                         <Form.Group className="mb-3">
-                                            <Form.Label>Country *</Form.Label>
+                                            <Form.Label className="fw-semibold">Country *</Form.Label>
                                             <Form.Control
                                                 type="text"
                                                 name="country"
@@ -287,7 +290,14 @@ const Checkout: React.FC = () => {
                                     className="w-100 mt-3"
                                     disabled={processing || loading}
                                 >
-                                    {processing ? 'Processing...' : 'Proceed to Payment'}
+                                    {processing ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2" />
+                                            Processing...
+                                        </>
+                                    ) : (
+                                        'Proceed to Payment'
+                                    )}
                                 </Button>
                             </Form>
                         </Card.Body>
@@ -295,27 +305,59 @@ const Checkout: React.FC = () => {
                 </Col>
 
                 <Col lg={4}>
-                    <CartSummary
-                        total={total}
-                        itemsCount={itemsCount}
-                        onCheckout={() => {}}
-                        loading={processing}
-                    />
-
-                    <Card className="mt-3">
+                    <Card className="sticky-top" style={{ top: '100px' }}>
                         <Card.Body>
-                            <h6 className="mb-3">Payment Method</h6>
-                            <div className="d-flex align-items-center">
-                                <img
-                                    src="https://razorpay.com/assets/razorpay-glyph.svg"
-                                    alt="Razorpay"
-                                    style={{ height: '30px', marginRight: '10px' }}
-                                />
-                                <span>Secure payment via Razorpay</span>
+                            <h6 className="mb-3">Order Summary</h6>
+
+                            <div className="d-flex justify-content-between mb-2">
+                                <span>Subtotal ({itemsCount} items)</span>
+                                <span>{formatPrice(total)}</span>
                             </div>
-                            <small className="text-muted d-block mt-2">
-                                We support UPI, Cards, Net Banking, and Wallets
-                            </small>
+
+                            <div className="d-flex justify-content-between mb-2">
+                                <span>Shipping</span>
+                                <span>
+                  {shippingCost === 0 ? (
+                      <span className="text-success fw-semibold">FREE</span>
+                  ) : (
+                      formatPrice(shippingCost)
+                  )}
+                </span>
+                            </div>
+
+                            <div className="d-flex justify-content-between mb-3">
+                                <span>Tax (GST 18%)</span>
+                                <span>{formatPrice(tax)}</span>
+                            </div>
+
+                            <hr />
+
+                            <div className="d-flex justify-content-between mb-3">
+                                <strong>Total</strong>
+                                <strong className="price">{formatPrice(grandTotal)}</strong>
+                            </div>
+
+                            {shippingCost > 0 && (
+                                <small className="text-muted d-block mb-3">
+                                    Add {formatPrice(500000 - total)} more for free shipping
+                                </small>
+                            )}
+
+                            {/* Payment Method Info */}
+                            <div className="mt-3 p-3 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
+                                <h6 className="mb-2 small">Payment Method</h6>
+                                <div className="d-flex align-items-center mb-2">
+                                    <img
+                                        src="https://razorpay.com/assets/razorpay-glyph.svg"
+                                        alt="Razorpay"
+                                        style={{ height: '20px', marginRight: '8px' }}
+                                    />
+                                    <small>Razorpay</small>
+                                </div>
+                                <small className="text-muted d-block" style={{ fontSize: '0.75rem' }}>
+                                    UPI, Cards, Net Banking & Wallets
+                                </small>
+                            </div>
                         </Card.Body>
                     </Card>
                 </Col>

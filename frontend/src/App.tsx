@@ -17,6 +17,7 @@ import Profile from './pages/Profile';
 import Orders from './pages/Orders';
 import OrderDetail from './pages/OrderDetail';
 import VerifyEmail from './pages/VerifyEmail';
+import OAuthCallback from './pages/OAuthCallback';
 
 // Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
@@ -38,6 +39,7 @@ const App: React.FC = () => {
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/auth/verify" element={<VerifyEmail />} />
+                        <Route path="/auth/callback/google" element={<OAuthCallback />} /> {/* ADD THIS */}
 
                         {/* Protected routes */}
                         <Route

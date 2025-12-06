@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -77,7 +78,9 @@ type UserDetail struct {
 	ID         string `json:"id"`
 	Email      string `json:"email"`
 	Name       string `json:"name,omitempty"`
+	Role       string `json:"role"`
 	IsVerified bool   `json:"is_verified"`
+	CreatedAt  string `json:"created_at,omitempty"`
 }
 
 // Register handles user registration
@@ -262,7 +265,7 @@ func (h *AuthHandler) Login(c echo.Context) error {
 	// Check if email is verified
 	if !user.IsVerified {
 		return c.JSON(http.StatusForbidden, map[string]string{
-			"error": "Please verify your email before logging in",
+			"error": "Please verify your email before logging in. Check your inbox for the verification link.",
 		})
 	}
 
@@ -310,7 +313,9 @@ func (h *AuthHandler) Login(c echo.Context) error {
 			ID:         user.ID.String(),
 			Email:      user.Email,
 			Name:       userName,
+			Role:       string(user.Role),
 			IsVerified: user.IsVerified,
+			CreatedAt:  user.CreatedAt.Format(time.RFC3339),
 		},
 	})
 }
@@ -321,15 +326,14 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 	state := c.QueryParam("state")
 
 	if code == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Authorization code is required",
-		})
+		// Redirect to frontend with error
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=missing_code", h.frontendURL))
 	}
 
 	if state == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "State parameter is required",
-		})
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=missing_state", h.frontendURL))
 	}
 
 	// Verify state parameter
@@ -337,9 +341,8 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 		h.logger.Warn("Invalid OAuth state parameter",
 			zap.String("state", state),
 		)
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Invalid state parameter - possible CSRF attack",
-		})
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=invalid_state", h.frontendURL))
 	}
 
 	// Exchange code for user info
@@ -348,15 +351,13 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 		h.logger.Error("Failed to exchange OAuth code",
 			zap.Error(err),
 		)
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Failed to authenticate with Google",
-		})
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=exchange_failed", h.frontendURL))
 	}
 
 	if !userInfo.VerifiedEmail {
-		return c.JSON(http.StatusBadRequest, map[string]string{
-			"error": "Google email is not verified",
-		})
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=email_not_verified", h.frontendURL))
 	}
 
 	// Try to find existing user by Google ID
@@ -376,9 +377,8 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 					zap.String("email", userInfo.Email),
 					zap.Error(err),
 				)
-				return c.JSON(http.StatusInternalServerError, map[string]string{
-					"error": "Failed to create user",
-				})
+				return c.Redirect(http.StatusTemporaryRedirect,
+					fmt.Sprintf("%s/login?error=user_creation_failed", h.frontendURL))
 			}
 
 			h.logger.Info("New user created via Google OAuth",
@@ -420,18 +420,18 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 			zap.String("user_id", user.ID.String()),
 			zap.Error(err),
 		)
-		return c.JSON(http.StatusInternalServerError, map[string]string{
-			"error": "Failed to generate token",
-		})
+		return c.Redirect(http.StatusTemporaryRedirect,
+			fmt.Sprintf("%s/login?error=token_generation_failed", h.frontendURL))
 	}
 
-	refreshToken, _, err := h.tokenService.GenerateRefreshToken(user.ID, user.Email)
+	// Generate refresh token (but we won't use it in redirect)
+	_, _, err = h.tokenService.GenerateRefreshToken(user.ID, user.Email)
 	if err != nil {
 		h.logger.Error("Failed to generate refresh token",
 			zap.String("user_id", user.ID.String()),
 			zap.Error(err),
 		)
-		refreshToken = ""
+		// Continue anyway
 	}
 
 	userName := ""
@@ -439,20 +439,25 @@ func (h *AuthHandler) GoogleOAuthCallback(c echo.Context) error {
 		userName = *user.Name
 	}
 
+	userEmail := user.Email
+	userID := user.ID.String()
+	userRole := string(user.Role)
+
 	expiresIn := int64(time.Until(expiresAt).Seconds())
 
-	return c.JSON(http.StatusOK, AuthResponse{
-		AccessToken:  accessToken,
-		RefreshToken: refreshToken,
-		ExpiresIn:    expiresIn,
-		TokenType:    "Bearer",
-		User: &UserDetail{
-			ID:         user.ID.String(),
-			Email:      user.Email,
-			Name:       userName,
-			IsVerified: user.IsVerified,
-		},
-	})
+	// Redirect to frontend callback with tokens
+	redirectURL := fmt.Sprintf(
+		"%s/auth/callback/google?access_token=%s&user_id=%s&user_name=%s&user_email=%s&user_role=%s&expires_in=%d",
+		h.frontendURL,
+		accessToken,
+		url.QueryEscape(userID),
+		url.QueryEscape(userName),
+		url.QueryEscape(userEmail),
+		url.QueryEscape(userRole),
+		expiresIn,
+	)
+
+	return c.Redirect(http.StatusTemporaryRedirect, redirectURL)
 }
 
 // GetGoogleAuthURL returns the Google OAuth authorization URL

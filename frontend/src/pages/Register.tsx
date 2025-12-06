@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Container, Form, Button, Card, Alert } from 'react-bootstrap';
+import { Container, Form, Button, Card, Alert, ProgressBar } from 'react-bootstrap';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { register, clearError } from '../features/auth/authSlice';
-import { isValidEmail, isValidPassword } from '../utils/validators';
+import { isValidEmail, isValidPassword, getPasswordStrength } from '../utils/validators';
 
 const Register: React.FC = () => {
     const dispatch = useAppDispatch();
@@ -19,12 +19,19 @@ const Register: React.FC = () => {
 
     const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
     const [success, setSuccess] = useState(false);
+    const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong'>('weak');
 
     useEffect(() => {
         return () => {
             dispatch(clearError());
         };
     }, [dispatch]);
+
+    useEffect(() => {
+        if (formData.password) {
+            setPasswordStrength(getPasswordStrength(formData.password));
+        }
+    }, [formData.password]);
 
     const validate = () => {
         const errors: Record<string, string> = {};
@@ -66,7 +73,7 @@ const Register: React.FC = () => {
             setSuccess(true);
             setTimeout(() => {
                 navigate('/login');
-            }, 3000);
+            }, 5000);
         }
     };
 
@@ -77,32 +84,72 @@ const Register: React.FC = () => {
         }
     };
 
+    const getStrengthColor = () => {
+        switch (passwordStrength) {
+            case 'weak': return 'danger';
+            case 'medium': return 'warning';
+            case 'strong': return 'success';
+        }
+    };
+
+    const getStrengthPercent = () => {
+        switch (passwordStrength) {
+            case 'weak': return 33;
+            case 'medium': return 66;
+            case 'strong': return 100;
+        }
+    };
+
     return (
         <Container className="py-5">
             <div className="row justify-content-center">
                 <div className="col-md-6 col-lg-5">
-                    <Card>
-                        <Card.Body className="p-4">
-                            <h2 className="text-center mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
-                                Register
-                            </h2>
+                    <Card className="border-0 shadow-lg">
+                        <Card.Body className="p-5">
+                            <div className="text-center mb-4">
+                                <div className="mb-3">
+                                    <span style={{ fontSize: '3rem' }}>✨</span>
+                                </div>
+                                <h2 style={{ fontFamily: 'Playfair Display, serif' }}>
+                                    Create Account
+                                </h2>
+                                <p className="text-muted">Join us to start shopping</p>
+                            </div>
 
                             {success && (
-                                <Alert variant="success">
-                                    Registration successful! Please check your email to verify your account.
-                                    Redirecting to login...
+                                <Alert variant="success" className="mb-4">
+                                    <div className="d-flex align-items-center">
+                                        <svg
+                                            width="24"
+                                            height="24"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            className="me-2"
+                                        >
+                                            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                                            <polyline points="22 4 12 14.01 9 11.01" />
+                                        </svg>
+                                        <div>
+                                            <strong>Registration successful!</strong>
+                                            <p className="mb-0 small">
+                                                Please check your email to verify your account. Redirecting to login...
+                                            </p>
+                                        </div>
+                                    </div>
                                 </Alert>
                             )}
 
                             {error && (
-                                <Alert variant="danger" dismissible onClose={() => dispatch(clearError())}>
+                                <Alert variant="danger" dismissible onClose={() => dispatch(clearError())} className="mb-4">
                                     {error}
                                 </Alert>
                             )}
 
                             <Form onSubmit={handleSubmit}>
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Name</Form.Label>
+                                    <Form.Label className="fw-semibold">Full Name</Form.Label>
                                     <Form.Control
                                         type="text"
                                         name="name"
@@ -110,7 +157,8 @@ const Register: React.FC = () => {
                                         onChange={handleChange}
                                         isInvalid={!!validationErrors.name}
                                         required
-                                        placeholder="Your full name"
+                                        placeholder="John Doe"
+                                        size="lg"
                                     />
                                     <Form.Control.Feedback type="invalid">
                                         {validationErrors.name}
@@ -118,7 +166,7 @@ const Register: React.FC = () => {
                                 </Form.Group>
 
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Email</Form.Label>
+                                    <Form.Label className="fw-semibold">Email Address</Form.Label>
                                     <Form.Control
                                         type="email"
                                         name="email"
@@ -127,6 +175,7 @@ const Register: React.FC = () => {
                                         isInvalid={!!validationErrors.email}
                                         required
                                         placeholder="your@email.com"
+                                        size="lg"
                                     />
                                     <Form.Control.Feedback type="invalid">
                                         {validationErrors.email}
@@ -134,7 +183,7 @@ const Register: React.FC = () => {
                                 </Form.Group>
 
                                 <Form.Group className="mb-3">
-                                    <Form.Label>Password</Form.Label>
+                                    <Form.Label className="fw-semibold">Password</Form.Label>
                                     <Form.Control
                                         type="password"
                                         name="password"
@@ -143,14 +192,29 @@ const Register: React.FC = () => {
                                         isInvalid={!!validationErrors.password}
                                         required
                                         placeholder="Create a strong password"
+                                        size="lg"
                                     />
+                                    {formData.password && (
+                                        <div className="mt-2">
+                                            <small className="text-muted d-block mb-1">
+                                                Password strength: <strong className={`text-${getStrengthColor()}`}>
+                                                {passwordStrength.toUpperCase()}
+                                            </strong>
+                                            </small>
+                                            <ProgressBar
+                                                now={getStrengthPercent()}
+                                                variant={getStrengthColor()}
+                                                style={{ height: '6px' }}
+                                            />
+                                        </div>
+                                    )}
                                     <Form.Control.Feedback type="invalid">
                                         {validationErrors.password}
                                     </Form.Control.Feedback>
                                 </Form.Group>
 
                                 <Form.Group className="mb-4">
-                                    <Form.Label>Confirm Password</Form.Label>
+                                    <Form.Label className="fw-semibold">Confirm Password</Form.Label>
                                     <Form.Control
                                         type="password"
                                         name="confirmPassword"
@@ -159,6 +223,7 @@ const Register: React.FC = () => {
                                         isInvalid={!!validationErrors.confirmPassword}
                                         required
                                         placeholder="Re-enter your password"
+                                        size="lg"
                                     />
                                     <Form.Control.Feedback type="invalid">
                                         {validationErrors.confirmPassword}
@@ -172,19 +237,26 @@ const Register: React.FC = () => {
                                     size="lg"
                                     disabled={loading || success}
                                 >
-                                    {loading ? 'Registering...' : 'Register'}
+                                    {loading ? (
+                                        <>
+                                            <span className="spinner-border spinner-border-sm me-2" />
+                                            Creating account...
+                                        </>
+                                    ) : (
+                                        'Create Account'
+                                    )}
                                 </Button>
 
-                                <div className="text-center">
-                                    <p className="mb-0">
+                                <div className="text-center mt-4">
+                                    <p className="mb-0 text-muted">
                                         Already have an account?{' '}
-                                        <Link to="/login" className="text-primary-custom">
-                                            Login here
+                                        <Link to="/login" className="text-primary-custom fw-semibold">
+                                            Sign in
                                         </Link>
                                     </p>
                                 </div>
                             </Form>
-       w                 </Card.Body>
+                        </Card.Body>
                     </Card>
                 </div>
             </div>

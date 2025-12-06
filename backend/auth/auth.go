@@ -10,6 +10,14 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// UserRole represents the role of a user
+type UserRole string
+
+const (
+	RoleCustomer UserRole = "customer"
+	RoleAdmin    UserRole = "admin"
+)
+
 // User represents a user in the system
 type User struct {
 	ID           uuid.UUID `json:"id"`
@@ -17,6 +25,7 @@ type User struct {
 	Name         *string   `json:"name,omitempty"`
 	PasswordHash *string   `json:"-"`
 	GoogleID     *string   `json:"-"`
+	Role         UserRole  `json:"role"`
 	IsVerified   bool      `json:"is_verified"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
@@ -28,6 +37,7 @@ type CreateUserInput struct {
 	Name     *string
 	Password *string
 	GoogleID *string
+	Role     *UserRole
 }
 
 // AuthRepository handles user authentication operations
@@ -59,12 +69,18 @@ func (r *AuthRepository) CreateUser(ctx context.Context, input CreateUserInput) 
 		return nil, fmt.Errorf("either password or google_id must be provided")
 	}
 
+	// Default role is customer
+	role := RoleCustomer
+	if input.Role != nil {
+		role = *input.Role
+	}
+
 	user := &User{}
 
 	query := `
-		INSERT INTO users (email, name, password_hash, google_id, is_verified)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, email, name, is_verified, created_at, updated_at
+		INSERT INTO users (email, name, password_hash, google_id, role, is_verified)
+		VALUES ($1, $2, $3, $4, $5, $6)
+		RETURNING id, email, name, role, is_verified, created_at, updated_at
 	`
 
 	// Google OAuth users are verified by default
@@ -77,11 +93,13 @@ func (r *AuthRepository) CreateUser(ctx context.Context, input CreateUserInput) 
 		input.Name,
 		passwordHash,
 		input.GoogleID,
+		string(role),
 		isVerified,
 	).Scan(
 		&user.ID,
 		&user.Email,
 		&user.Name,
+		&user.Role,
 		&user.IsVerified,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -99,7 +117,7 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 	user := &User{}
 
 	query := `
-		SELECT id, email, name, password_hash, google_id, is_verified, created_at, updated_at
+		SELECT id, email, name, password_hash, google_id, role, is_verified, created_at, updated_at
 		FROM users
 		WHERE email = $1
 	`
@@ -110,6 +128,7 @@ func (r *AuthRepository) GetUserByEmail(ctx context.Context, email string) (*Use
 		&user.Name,
 		&user.PasswordHash,
 		&user.GoogleID,
+		&user.Role,
 		&user.IsVerified,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -131,7 +150,7 @@ func (r *AuthRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*User, 
 	user := &User{}
 
 	query := `
-		SELECT id, email, name, password_hash, google_id, is_verified, created_at, updated_at
+		SELECT id, email, name, password_hash, google_id, role, is_verified, created_at, updated_at
 		FROM users
 		WHERE id = $1
 	`
@@ -142,6 +161,7 @@ func (r *AuthRepository) GetUserByID(ctx context.Context, id uuid.UUID) (*User, 
 		&user.Name,
 		&user.PasswordHash,
 		&user.GoogleID,
+		&user.Role,
 		&user.IsVerified,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -163,7 +183,7 @@ func (r *AuthRepository) GetUserByGoogleID(ctx context.Context, googleID string)
 	user := &User{}
 
 	query := `
-		SELECT id, email, name, password_hash, google_id, is_verified, created_at, updated_at
+		SELECT id, email, name, password_hash, google_id, role, is_verified, created_at, updated_at
 		FROM users
 		WHERE google_id = $1
 	`
@@ -174,6 +194,7 @@ func (r *AuthRepository) GetUserByGoogleID(ctx context.Context, googleID string)
 		&user.Name,
 		&user.PasswordHash,
 		&user.GoogleID,
+		&user.Role,
 		&user.IsVerified,
 		&user.CreatedAt,
 		&user.UpdatedAt,
@@ -275,6 +296,31 @@ func (r *AuthRepository) LinkGoogleID(ctx context.Context, userID uuid.UUID, goo
 	result, err := r.db.ExecContext(ctx, query, googleID, userID)
 	if err != nil {
 		return fmt.Errorf("failed to link Google ID: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("failed to get rows affected: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("user not found")
+	}
+
+	return nil
+}
+
+// UpdateRole updates a user's role
+func (r *AuthRepository) UpdateRole(ctx context.Context, userID uuid.UUID, role UserRole) error {
+	query := `
+		UPDATE users
+		SET role = $1, updated_at = NOW()
+		WHERE id = $2
+	`
+
+	result, err := r.db.ExecContext(ctx, query, string(role), userID)
+	if err != nil {
+		return fmt.Errorf("failed to update role: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()

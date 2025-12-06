@@ -1,6 +1,6 @@
 @import './variables';
 
-// Flexbox mixins
+// Flexbox
 @mixin flex-center {
   display: flex;
   align-items: center;
@@ -18,36 +18,24 @@
   flex-direction: column;
 }
 
-// Responsive breakpoints
+// Responsive Breakpoints
 @mixin respond-to($breakpoint) {
   @if $breakpoint == xs {
-    @media (min-width: $breakpoint-xs) {
-      @content;
-    }
+    @media (min-width: $breakpoint-xs) { @content; }
   } @else if $breakpoint == sm {
-    @media (min-width: $breakpoint-sm) {
-      @content;
-    }
+    @media (min-width: $breakpoint-sm) { @content; }
   } @else if $breakpoint == md {
-    @media (min-width: $breakpoint-md) {
-      @content;
-    }
+    @media (min-width: $breakpoint-md) { @content; }
   } @else if $breakpoint == lg {
-    @media (min-width: $breakpoint-lg) {
-      @content;
-    }
+    @media (min-width: $breakpoint-lg) { @content; }
   } @else if $breakpoint == xl {
-    @media (min-width: $breakpoint-xl) {
-      @content;
-    }
+    @media (min-width: $breakpoint-xl) { @content; }
   } @else if $breakpoint == xxl {
-    @media (min-width: $breakpoint-xxl) {
-      @content;
-    }
+    @media (min-width: $breakpoint-xxl) { @content; }
   }
 }
 
-// Text truncation
+// Text Utilities
 @mixin text-truncate {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -62,11 +50,51 @@
 }
 
 // Transitions
-@mixin transition($property: all, $duration: 0.3s, $timing: ease) {
+@mixin transition($property: all, $duration: $transition-base, $timing: ease-in-out) {
   transition: $property $duration $timing;
 }
 
-// Button reset
+// Animations
+@mixin fade-in($duration: $transition-base) {
+  animation: fadeIn $duration ease-in;
+
+  @keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@mixin slide-up($duration: $transition-base) {
+  animation: slideUp $duration ease-out;
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(20px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+}
+
+@mixin scale-in($duration: $transition-base) {
+  animation: scaleIn $duration ease-out;
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.9);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+// Button
 @mixin button-reset {
   border: none;
   background: none;
@@ -76,18 +104,24 @@
   font: inherit;
   color: inherit;
   outline: none;
+
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
 }
 
 // Card
 @mixin card {
-  background: $surface;
-  border-radius: $card-border-radius;
-  box-shadow: $box-shadow-sm;
+  background: var(--card-bg);
+  border-radius: $border-radius;
+  border: 1px solid var(--border);
   padding: $card-padding;
-  transition: $transition-base;
+  transition: all $transition-base;
 
   &:hover {
-    box-shadow: $box-shadow;
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
   }
 }
 
@@ -98,23 +132,52 @@
   padding: 0 $container-padding;
 }
 
-// Scrollbar
-@mixin custom-scrollbar {
+// Custom Scrollbar
+@mixin custom-scrollbar($width: 8px) {
   &::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: $width;
+    height: $width;
   }
 
   &::-webkit-scrollbar-track {
-    background: $background;
+    background: var(--background);
   }
 
   &::-webkit-scrollbar-thumb {
-    background: $text-secondary;
-    border-radius: 4px;
+    background: var(--border);
+    border-radius: $border-radius-full;
 
     &:hover {
-      background: $text-primary;
+      background: var(--text-tertiary);
+    }
+  }
+}
+
+// Glass Effect
+@mixin glass-effect {
+  background: rgba(var(--primary-rgb), 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(var(--primary-rgb), 0.2);
+}
+
+// Focus Ring
+@mixin focus-ring {
+  &:focus-visible {
+    outline: 2px solid var(--primary);
+    outline-offset: 2px;
+  }
+}
+
+// Image Zoom on Hover
+@mixin image-zoom {
+  overflow: hidden;
+
+  img {
+    transition: transform $transition-slow;
+
+    &:hover {
+      transform: scale(1.1);
     }
   }
 }
