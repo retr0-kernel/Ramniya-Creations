@@ -15,8 +15,10 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Profile from './pages/Profile';
 import Orders from './pages/Orders';
+import OrderDetail from './pages/OrderDetail';
+import VerifyEmail from './pages/VerifyEmail';
 
-// Admin pages (we'll create simple placeholders)
+// Admin pages
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOrders from './pages/admin/AdminOrders';
@@ -35,6 +37,7 @@ const App: React.FC = () => {
                         <Route path="/cart" element={<Cart />} />
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
+                        <Route path="/auth/verify" element={<VerifyEmail />} />
 
                         {/* Protected routes */}
                         <Route
@@ -65,7 +68,7 @@ const App: React.FC = () => {
                             path="/orders/:id"
                             element={
                                 <ProtectedRoute>
-                                    <Orders />
+                                    <OrderDetail />
                                 </ProtectedRoute>
                             }
                         />

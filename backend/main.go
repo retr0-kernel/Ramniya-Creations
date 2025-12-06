@@ -188,6 +188,24 @@ func main() {
 	e.HidePort = true
 
 	// Middleware
+	//e.Use(echomiddleware.RequestLoggerWithConfig(echomiddleware.RequestLoggerConfig{
+	//	LogURI:    true,
+	//	LogStatus: true,
+	//	LogError:  true,
+	//	LogValuesFunc: func(c echo.Context, v echomiddleware.RequestLoggerValues) error {
+	//		logger.Info("Request",
+	//			zap.String("method", c.Request().Method),
+	//			zap.String("uri", v.URI),
+	//			zap.Int("status", v.Status),
+	//			zap.Error(v.Error),
+	//		)
+	//		return nil
+	//	},
+	//}))
+	//e.Use(echomiddleware.Recover())
+	//e.Use(echomiddleware.CORS())
+
+	// Middleware
 	e.Use(echomiddleware.RequestLoggerWithConfig(echomiddleware.RequestLoggerConfig{
 		LogURI:    true,
 		LogStatus: true,
@@ -203,7 +221,13 @@ func main() {
 		},
 	}))
 	e.Use(echomiddleware.Recover())
-	e.Use(echomiddleware.CORS())
+	// CORS configuration
+	e.Use(echomiddleware.CORSWithConfig(echomiddleware.CORSConfig{
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3001"},
+		AllowMethods:     []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodOptions},
+		AllowHeaders:     []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowCredentials: true,
+	}))
 
 	// Global API rate limiting (if Redis enabled)
 	if redisClient.IsEnabled() {
