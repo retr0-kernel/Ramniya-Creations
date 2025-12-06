@@ -31,6 +31,10 @@ type Config struct {
 	// Razorpay Configuration
 	RazorpayKeyID     string
 	RazorpayKeySecret string
+
+	// Redis Configuration
+	RedisURL     string
+	RedisEnabled bool
 }
 
 // Load loads configuration from environment variables
@@ -60,6 +64,10 @@ func Load() (*Config, error) {
 		// Razorpay
 		RazorpayKeyID:     getEnv("RAZORPAY_KEY_ID", ""),
 		RazorpayKeySecret: getEnv("RAZORPAY_KEY_SECRET", ""),
+
+		// Redis
+		RedisURL:     getEnv("REDIS_URL", ""),
+		RedisEnabled: getEnv("REDIS_URL", "") != "",
 	}
 
 	// Validate required fields

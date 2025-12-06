@@ -4,9 +4,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/ramniya/ramniya-backend/cache"
 	"github.com/ramniya/ramniya-backend/products"
 	"github.com/ramniya/ramniya-backend/upload"
 	"go.uber.org/zap"
@@ -18,6 +20,7 @@ type ProductHandler struct {
 	uploadService *upload.UploadService
 	logger        *zap.Logger
 	baseURL       string
+	cacheService  *cache.CacheService
 }
 
 // NewProductHandler creates a new product handler
@@ -26,12 +29,14 @@ func NewProductHandler(
 	uploadService *upload.UploadService,
 	logger *zap.Logger,
 	baseURL string,
+	cacheService *cache.CacheService,
 ) *ProductHandler {
 	return &ProductHandler{
 		productRepo:   productRepo,
 		uploadService: uploadService,
 		logger:        logger,
 		baseURL:       baseURL,
+		cacheService:  cacheService,
 	}
 }
 
@@ -215,36 +220,28 @@ func (h *ProductHandler) UploadProductImages(c echo.Context) error {
 	return c.JSON(statusCode, response)
 }
 
-// ListProducts handles GET /api/products
+// ListProducts handles GET /api/products with caching
 func (h *ProductHandler) ListProducts(c echo.Context) error {
 	// Parse query parameters
-	var filter products.ListProductsFilter
+	filter := products.ListProductsFilter{}
 
-	// Price filters
 	if minPriceStr := c.QueryParam("min_price"); minPriceStr != "" {
-		minPrice, err := strconv.ParseFloat(minPriceStr, 64)
-		if err == nil && minPrice >= 0 {
-			filter.MinPrice = &minPrice
-		}
+		minPrice, _ := strconv.ParseFloat(minPriceStr, 64)
+		filter.MinPrice = &minPrice
 	}
 
 	if maxPriceStr := c.QueryParam("max_price"); maxPriceStr != "" {
-		maxPrice, err := strconv.ParseFloat(maxPriceStr, 64)
-		if err == nil && maxPrice >= 0 {
-			filter.MaxPrice = &maxPrice
-		}
+		maxPrice, _ := strconv.ParseFloat(maxPriceStr, 64)
+		filter.MaxPrice = &maxPrice
 	}
 
-	// Attribute filters
 	if size := c.QueryParam("size"); size != "" {
 		filter.Size = &size
 	}
-
 	if color := c.QueryParam("color"); color != "" {
 		filter.Color = &color
 	}
 
-	// Pagination
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
 	if limit <= 0 || limit > 100 {
 		limit = 20
@@ -257,32 +254,47 @@ func (h *ProductHandler) ListProducts(c echo.Context) error {
 	}
 	filter.Offset = (page - 1) * limit
 
-	// Sorting
 	filter.SortBy = c.QueryParam("sort_by")
-	if filter.SortBy != "price" && filter.SortBy != "created_at" {
+	if filter.SortBy != "price" {
 		filter.SortBy = "created_at"
 	}
 
 	filter.SortOrder = c.QueryParam("sort_order")
-	if filter.SortOrder != "asc" && filter.SortOrder != "desc" {
+	if filter.SortOrder != "asc" {
 		filter.SortOrder = "desc"
 	}
 
-	// Get products
+	// Generate cache key from filter
+	cacheKey := fmt.Sprintf("products:list:%s:%s:%.2f:%.2f:%d:%d:%s:%s",
+		valueOrEmpty(filter.Size), valueOrEmpty(filter.Color),
+		valueOrZero(filter.MinPrice), valueOrZero(filter.MaxPrice),
+		page, filter.Limit,
+		filter.SortBy, filter.SortOrder,
+	)
+
+	// Try to get from cache if cache service is available
+	if h.cacheService != nil {
+		var cachedResponse map[string]interface{}
+		if err := h.cacheService.GetJSON(c.Request().Context(), cacheKey, &cachedResponse); err == nil {
+			h.logger.Debug("Serving products from cache",
+				zap.String("cache_key", cacheKey),
+			)
+			return c.JSON(http.StatusOK, cachedResponse)
+		}
+	}
+
+	// Get products from database
 	productsList, total, err := h.productRepo.ListProducts(c.Request().Context(), filter, h.baseURL)
 	if err != nil {
-		h.logger.Error("Failed to list products",
-			zap.Error(err),
-		)
+		h.logger.Error("Failed to list products", zap.Error(err))
 		return c.JSON(http.StatusInternalServerError, map[string]string{
 			"error": "Failed to list products",
 		})
 	}
 
-	// Calculate pagination metadata
 	totalPages := (total + limit - 1) / limit
 
-	return c.JSON(http.StatusOK, map[string]interface{}{
+	response := map[string]interface{}{
 		"products": productsList,
 		"pagination": map[string]interface{}{
 			"total":        total,
@@ -292,7 +304,33 @@ func (h *ProductHandler) ListProducts(c echo.Context) error {
 			"has_next":     page < totalPages,
 			"has_previous": page > 1,
 		},
-	})
+	}
+
+	// Cache the response for 30 seconds if cache service is available
+	if h.cacheService != nil {
+		if err := h.cacheService.SetJSON(c.Request().Context(), cacheKey, response, 30*time.Second); err != nil {
+			h.logger.Warn("Failed to cache products list",
+				zap.String("cache_key", cacheKey),
+				zap.Error(err),
+			)
+		}
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+func valueOrZero(ptr *float64) float64 {
+	if ptr == nil {
+		return 0
+	}
+	return *ptr
+}
+
+func valueOrEmpty(ptr *string) string {
+	if ptr == nil {
+		return ""
+	}
+	return *ptr
 }
 
 // GetProduct handles GET /api/products/:id

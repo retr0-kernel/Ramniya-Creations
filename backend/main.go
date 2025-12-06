@@ -12,6 +12,7 @@ import (
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"github.com/ramniya/ramniya-backend/auth"
+	"github.com/ramniya/ramniya-backend/cache"
 	"github.com/ramniya/ramniya-backend/config"
 	"github.com/ramniya/ramniya-backend/database"
 	"github.com/ramniya/ramniya-backend/email"
@@ -60,6 +61,16 @@ func main() {
 		handleCLICommands(os.Args[1:], cfg)
 		return
 	}
+
+	// Initialize Redis (optional, with fallback)
+	redisClient, err := cache.NewRedisClient(cfg.RedisURL, logger.Log)
+	if err != nil {
+		logger.Fatal("Failed to initialize Redis client", zap.Error(err))
+	}
+	defer redisClient.Close()
+
+	// Initialize cache service
+	cacheService := cache.NewCacheService(redisClient, logger.Log)
 
 	// Initialize repositories
 	authRepo := auth.NewAuthRepository(database.DB)
@@ -156,6 +167,7 @@ func main() {
 		uploadService,
 		logger.Log,
 		baseURL,
+		cacheService, // Pass cache service
 	)
 
 	orderHandler := handlers.NewOrderHandler(
@@ -193,8 +205,11 @@ func main() {
 	e.Use(echomiddleware.Recover())
 	e.Use(echomiddleware.CORS())
 
-	// Rate limiting
-	e.Use(echomiddleware.RateLimiter(echomiddleware.NewRateLimiterMemoryStore(20)))
+	// Global API rate limiting (if Redis enabled)
+	if redisClient.IsEnabled() {
+		e.Use(middleware.APIRateLimiter(redisClient, logger.Log))
+		logger.Info("Redis rate limiting enabled")
+	}
 
 	// Serve uploaded files in development
 	if !cfg.IsProduction() {
@@ -207,25 +222,43 @@ func main() {
 		ctx, cancel := context.WithTimeout(c.Request().Context(), 2*time.Second)
 		defer cancel()
 
+		dbStatus := "connected"
 		if err := database.Ping(ctx); err != nil {
 			logger.Error("Database health check failed", zap.Error(err))
-			return c.JSON(http.StatusServiceUnavailable, map[string]string{
-				"status":   "unhealthy",
-				"database": "disconnected",
-			})
+			dbStatus = "disconnected"
 		}
 
-		return c.JSON(http.StatusOK, map[string]string{
-			"status":   "ok",
-			"database": "connected",
+		redisStatus := "disabled"
+		if redisClient.IsEnabled() {
+			redisStatus = "connected"
+		}
+
+		status := "ok"
+		statusCode := http.StatusOK
+		if dbStatus == "disconnected" {
+			status = "unhealthy"
+			statusCode = http.StatusServiceUnavailable
+		}
+
+		return c.JSON(statusCode, map[string]string{
+			"status":   status,
+			"database": dbStatus,
+			"redis":    redisStatus,
 		})
 	})
 
 	// Auth endpoints (public)
 	authGroup := e.Group("/api/auth")
+
+	// Apply login rate limiting only to login endpoint
+	if redisClient.IsEnabled() {
+		authGroup.POST("/login", authHandler.Login, middleware.LoginRateLimiter(redisClient, logger.Log))
+	} else {
+		authGroup.POST("/login", authHandler.Login)
+	}
+
 	authGroup.POST("/register", authHandler.Register)
 	authGroup.GET("/verify", authHandler.VerifyEmail)
-	authGroup.POST("/login", authHandler.Login)
 
 	// OAuth endpoints (if configured)
 	if oauthService != nil {
@@ -233,7 +266,7 @@ func main() {
 		authGroup.GET("/oauth/google/callback", authHandler.GoogleOAuthCallback)
 	}
 
-	// Public product endpoints
+	// Public product endpoints (cached)
 	e.GET("/api/products", productHandler.ListProducts)
 	e.GET("/api/products/:id", productHandler.GetProduct)
 
