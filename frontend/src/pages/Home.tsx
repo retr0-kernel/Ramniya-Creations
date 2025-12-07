@@ -167,14 +167,13 @@ const Home: React.FC = () => {
                 className="cta-section py-5 text-center"
                 style={{
                     background: 'linear-gradient(135deg, var(--secondary) 0%, var(--secondary-light) 100%)',
-                    color: 'white',
                 }}
             >
                 <Container>
-                    <h2 className="display-6 fw-bold mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>
+                    <h2 className="display-6 fw-bold mb-3" style={{ fontFamily: 'Playfair Display, serif', color: 'var(--text-primary)' }}>
                         Start Your Journey Today
                     </h2>
-                    <p className="lead mb-4">
+                    <p className="lead mb-4" style={{ color: 'var(--text-secondary)' }}>
                         Join thousands of satisfied customers who trust us for authentic Indian craftsmanship
                     </p>
                     <Link to="/register">

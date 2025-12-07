@@ -19,7 +19,8 @@ import OrderDetail from './pages/OrderDetail';
 import VerifyEmail from './pages/VerifyEmail';
 import OAuthCallback from './pages/OAuthCallback';
 
-// Admin pages
+// Admin
+import AdminLayout from './pages/admin/AdminLayout';
 import AdminDashboard from './pages/admin/AdminDashboard';
 import AdminProducts from './pages/admin/AdminProducts';
 import AdminOrders from './pages/admin/AdminOrders';
@@ -39,7 +40,7 @@ const App: React.FC = () => {
                         <Route path="/login" element={<Login />} />
                         <Route path="/register" element={<Register />} />
                         <Route path="/auth/verify" element={<VerifyEmail />} />
-                        <Route path="/auth/callback/google" element={<OAuthCallback />} /> {/* ADD THIS */}
+                        <Route path="/auth/callback/google" element={<OAuthCallback />} />
 
                         {/* Protected routes */}
                         <Route
@@ -75,31 +76,19 @@ const App: React.FC = () => {
                             }
                         />
 
-                        {/* Admin routes */}
+                        {/* Admin routes with layout */}
                         <Route
-                            path="/admin/dashboard"
+                            path="/admin"
                             element={
                                 <AdminRoute>
-                                    <AdminDashboard />
+                                    <AdminLayout />
                                 </AdminRoute>
                             }
-                        />
-                        <Route
-                            path="/admin/products"
-                            element={
-                                <AdminRoute>
-                                    <AdminProducts />
-                                </AdminRoute>
-                            }
-                        />
-                        <Route
-                            path="/admin/orders"
-                            element={
-                                <AdminRoute>
-                                    <AdminOrders />
-                                </AdminRoute>
-                            }
-                        />
+                        >
+                            <Route path="dashboard" element={<AdminDashboard />} />
+                            <Route path="products" element={<AdminProducts />} />
+                            <Route path="orders" element={<AdminOrders />} />
+                        </Route>
                     </Routes>
                 </main>
                 <Footer />

@@ -4,6 +4,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAppDispatch, useAppSelector } from '../app/hooks';
 import { register, clearError } from '../features/auth/authSlice';
 import { isValidEmail, isValidPassword, getPasswordStrength } from '../utils/validators';
+import axios from '../api/axiosConfig';
+import { API_ENDPOINTS } from '../api/endpoints';
 
 const Register: React.FC = () => {
     const dispatch = useAppDispatch();
@@ -97,6 +99,16 @@ const Register: React.FC = () => {
             case 'weak': return 33;
             case 'medium': return 66;
             case 'strong': return 100;
+        }
+    };
+
+    const handleGoogleLogin = async () => {
+        try {
+            const response = await axios.get(API_ENDPOINTS.GOOGLE_OAUTH);
+            const { auth_url } = response.data;
+            window.location.href = auth_url;
+        } catch (error) {
+            console.error('Failed to get Google auth URL:', error);
         }
     };
 
@@ -245,6 +257,32 @@ const Register: React.FC = () => {
                                     ) : (
                                         'Create Account'
                                     )}
+                                </Button>
+
+                                <div className="position-relative my-4">
+                                    <hr style={{ borderColor: 'var(--border)' }} />
+                                    <span
+                                        className="position-absolute top-50 start-50 translate-middle px-3 text-muted small"
+                                        style={{ backgroundColor: 'var(--card-bg)' }}
+                                    >
+                    OR
+                  </span>
+                                </div>
+
+                                <Button
+                                    variant="outline-secondary"
+                                    className="w-100 mb-3"
+                                    size="lg"
+                                    onClick={handleGoogleLogin}
+                                    type="button"
+                                >
+                                    <svg width="18" height="18" viewBox="0 0 18 18" className="me-2">
+                                        <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 0 0 2.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+                                        <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 0 1-7.18-2.54H1.83v2.07A8 8 0 0 0 8.98 17z"/>
+                                        <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 0 1 0-3.04V5.41H1.83a8 8 0 0 0 0 7.18l2.67-2.07z"/>
+                                        <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 0 0 1.83 5.4L4.5 7.49a4.77 4.77 0 0 1 4.48-3.3z"/>
+                                    </svg>
+                                    Continue with Google
                                 </Button>
 
                                 <div className="text-center mt-4">

@@ -81,14 +81,14 @@ const Navbar: React.FC = () => {
                                                     display: 'flex',
                                                     alignItems: 'center',
                                                     justifyContent: 'center',
-                                                    color: '#000',
+                                                    color: '#000 !important',
                                                     fontWeight: '600',
                                                     fontSize: '0.875rem'
                                                 }}
                                             >
                                                 {user?.name?.charAt(0).toUpperCase() || 'U'}
                                             </div>
-                                            <span>{user?.name || 'Account'}</span>
+                                            <span style={{ color: 'var(--text-primary)' }}>{user?.name || 'Account'}</span>
                                         </div>
                                     }
                                     id="user-dropdown"

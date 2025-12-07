@@ -73,8 +73,14 @@ const ProductImageZoom: React.FC<ProductImageZoomProps> = ({ images, title }) =>
 
                 {zoom && (
                     <div
-                        className="position-absolute top-0 end-0 m-3 bg-dark text-white px-3 py-1 rounded"
-                        style={{ fontSize: '0.875rem', opacity: 0.8 }}
+                        className="position-absolute top-0 end-0 m-3 px-3 py-1 rounded"
+                        style={{
+                            fontSize: '0.875rem',
+                            opacity: 0.9,
+                            backgroundColor: 'var(--surface)',
+                            color: 'var(--text-primary)',
+                            border: '1px solid var(--border)'
+                        }}
                     >
                         Move mouse to zoom
                     </div>

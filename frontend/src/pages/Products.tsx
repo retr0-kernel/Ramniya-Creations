@@ -31,38 +31,57 @@ const Products: React.FC = () => {
     };
 
     return (
-        <Container className="py-4">
-            <h1 className="mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
-                Products
-            </h1>
+        <Container fluid className="py-4 px-lg-5">
+            {/* Page Header */}
+            <div className="mb-4">
+                <div className="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                    <div>
+                        <h1 className="mb-2" style={{ fontFamily: 'Playfair Display, serif', fontSize: '2.5rem' }}>
+                            Our Collection
+                        </h1>
+                        <p className="text-muted mb-0" style={{ fontSize: '1rem' }}>
+                            Discover exquisite handcrafted jewelry and traditional handicrafts
+                        </p>
+                    </div>
+                    {!loading && pagination && (
+                        <div className="text-end">
+                            <div className="badge bg-primary" style={{ fontSize: '0.9rem', padding: '0.5rem 1rem' }}>
+                                {pagination.total || 0} Product{pagination.total !== 1 ? 's' : ''}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
 
-            <Row>
-                <Col lg={3} className="mb-4">
-                    <ProductFilters
-                        filters={filters}
-                        onFilterChange={handleFilterChange}
-                        onClearFilters={handleClearFilters}
-                    />
+            <Row className="g-4">
+                {/* Filters Sidebar */}
+                <Col lg={3} xl={2}>
+                    <div className="sticky-top" style={{ top: '90px' }}>
+                        <ProductFilters
+                            filters={filters}
+                            onFilterChange={handleFilterChange}
+                            onClearFilters={handleClearFilters}
+                        />
+                    </div>
                 </Col>
 
-                <Col lg={9}>
+                {/* Products Grid */}
+                <Col lg={9} xl={10}>
                     {error && <ErrorAlert error={error} />}
 
                     {loading ? (
-                        <Spinner fullScreen />
+                        <div className="d-flex justify-content-center align-items-center" style={{ minHeight: '400px' }}>
+                            <Spinner />
+                        </div>
                     ) : (
                         <>
-                            <div className="d-flex justify-content-between align-items-center mb-4">
-                                <p className="text-muted mb-0">
-                                    {pagination?.total || 0} product{pagination?.total !== 1 ? 's' : ''} found
-                                </p>
-                            </div>
-
+                            {/* Products Grid */}
                             <ProductGrid products={products} />
 
+                            {/* Pagination */}
                             {pagination && pagination.total_pages > 1 && (
                                 <div className="d-flex justify-content-center mt-5">
-                                    <Pagination>
+                                    <Pagination size="lg">
                                         <Pagination.First
                                             onClick={() => handlePageChange(1)}
                                             disabled={!pagination.has_previous}

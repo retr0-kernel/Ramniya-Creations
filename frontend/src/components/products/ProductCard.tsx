@@ -32,7 +32,7 @@ const ProductCard: React.FC<ProductCardProps> = ({ product }) => {
                     />
                 </div>
                 <Card.Body>
-                    <Card.Title className="text-dark h6 mb-2">
+                    <Card.Title className="h6 mb-2" style={{ color: 'var(--text-primary)' }}>
                         {product.title}
                     </Card.Title>
                     <Card.Text className="text-muted small mb-2" style={{
