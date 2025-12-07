@@ -168,25 +168,56 @@ const AdminProducts: React.FC = () => {
                                     </thead>
                                     <tbody>
                                     {filteredProducts.map((product) => {
-                                        const primaryImage = product.images.find((img) => img.is_primary) || product.images[0];
-                                        const totalStock = product.variants.reduce((sum, v) => sum + v.stock, 0);
+                                        // Safe access to images and variants
+                                        const images = product.images || [];
+                                        const variants = product.variants || [];
+                                        const primaryImage = images.find((img) => img.is_primary) || images[0];
+                                        const totalStock = variants.reduce((sum, v) => sum + v.stock, 0);
 
                                         return (
                                             <tr key={product.id}>
                                                 <td>
-                                                    <img
-                                                        src={primaryImage?.url || '/placeholder.jpg'}
-                                                        alt={product.title}
-                                                        style={{
-                                                            width: '60px',
-                                                            height: '60px',
-                                                            objectFit: 'cover',
-                                                            borderRadius: '8px',
-                                                        }}
-                                                        onError={(e) => {
-                                                            (e.target as HTMLImageElement).src = '/placeholder.jpg';
-                                                        }}
-                                                    />
+                                                    {primaryImage ? (
+                                                        <img
+                                                            src={primaryImage.url}
+                                                            alt={product.title}
+                                                            style={{
+                                                                width: '60px',
+                                                                height: '60px',
+                                                                objectFit: 'cover',
+                                                                borderRadius: '8px',
+                                                            }}
+                                                            onError={(e) => {
+                                                                (e.target as HTMLImageElement).src = '/placeholder.jpg';
+                                                            }}
+                                                        />
+                                                    ) : (
+                                                        <div
+                                                            style={{
+                                                                width: '60px',
+                                                                height: '60px',
+                                                                borderRadius: '8px',
+                                                                backgroundColor: 'var(--surface-hover)',
+                                                                display: 'flex',
+                                                                alignItems: 'center',
+                                                                justifyContent: 'center',
+                                                            }}
+                                                        >
+                                                            <svg
+                                                                width="24"
+                                                                height="24"
+                                                                viewBox="0 0 24 24"
+                                                                fill="none"
+                                                                stroke="currentColor"
+                                                                strokeWidth="2"
+                                                                opacity="0.3"
+                                                            >
+                                                                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                                                                <circle cx="8.5" cy="8.5" r="1.5" />
+                                                                <polyline points="21 15 16 10 5 21" />
+                                                            </svg>
+                                                        </div>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     <div>
@@ -201,13 +232,23 @@ const AdminProducts: React.FC = () => {
                                                     <div className="price">{formatPrice(product.price)}</div>
                                                 </td>
                                                 <td>
-                                                    <Badge bg="info">{product.variants.length} variants</Badge>
-                                                    <div>
-                                                        <small className="text-muted">Stock: {totalStock}</small>
-                                                    </div>
+                                                    {variants.length > 0 ? (
+                                                        <>
+                                                            <Badge bg="info">{variants.length} variants</Badge>
+                                                            <div>
+                                                                <small className="text-muted">Stock: {totalStock}</small>
+                                                            </div>
+                                                        </>
+                                                    ) : (
+                                                        <Badge bg="secondary">No variants</Badge>
+                                                    )}
                                                 </td>
                                                 <td>
-                                                    <Badge bg="secondary">{product.images.length} images</Badge>
+                                                    {images.length > 0 ? (
+                                                        <Badge bg="secondary">{images.length} images</Badge>
+                                                    ) : (
+                                                        <Badge bg="warning">No images</Badge>
+                                                    )}
                                                 </td>
                                                 <td>
                                                     <small className="text-muted">{formatDateTime(product.created_at)}</small>
@@ -215,7 +256,7 @@ const AdminProducts: React.FC = () => {
                                                 <td>
                                                     <div className="d-flex gap-2">
                                                         <Link to={`/products/${product.id}`}>
-                                                            <Button variant="outline-primary" size="sm">
+                                                            <Button variant="outline-primary" size="sm" title="View Product">
                                                                 <svg
                                                                     width="14"
                                                                     height="14"
@@ -232,7 +273,8 @@ const AdminProducts: React.FC = () => {
                                                         <Button
                                                             variant="outline-primary"
                                                             size="sm"
-                                                            onClick={() => alert('Edit functionality coming soon!')}
+                                                            onClick={() => alert('Edit functionality coming soon! Use the API to edit products.')}
+                                                            title="Edit Product"
                                                         >
                                                             <svg
                                                                 width="14"
@@ -250,6 +292,7 @@ const AdminProducts: React.FC = () => {
                                                             variant="outline-danger"
                                                             size="sm"
                                                             onClick={() => handleDeleteProduct(product.id)}
+                                                            title="Delete Product"
                                                         >
                                                             <svg
                                                                 width="14"
@@ -336,14 +379,72 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
         material: '',
         weight: '',
     });
+    const [showAdvanced, setShowAdvanced] = useState(false);
+    const [variants, setVariants] = useState<Array<{
+        sku: string;
+        size: string;
+        color: string;
+        price_modifier: string;
+        stock: string;
+    }>>([]);
+    const [images, setImages] = useState<File[]>([]);
+    const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+    const [primaryImageIndex, setPrimaryImageIndex] = useState(0);
     const [loading, setLoading] = useState(false);
+
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (e.target.files) {
+            const filesArray = Array.from(e.target.files);
+            setImages(filesArray);
+
+            // Create previews
+            const previews = filesArray.map((file) => URL.createObjectURL(file));
+            setImagePreviews(previews);
+        }
+    };
+
+    const removeImage = (index: number) => {
+        const newImages = images.filter((_, i) => i !== index);
+        const newPreviews = imagePreviews.filter((_, i) => i !== index);
+        setImages(newImages);
+        setImagePreviews(newPreviews);
+
+        // Adjust primary index if needed
+        if (primaryImageIndex >= newImages.length) {
+            setPrimaryImageIndex(Math.max(0, newImages.length - 1));
+        }
+    };
+
+    const addVariant = () => {
+        setVariants([
+            ...variants,
+            {
+                sku: '',
+                size: '',
+                color: '',
+                price_modifier: '0',
+                stock: '0',
+            },
+        ]);
+    };
+
+    const removeVariant = (index: number) => {
+        setVariants(variants.filter((_, i) => i !== index));
+    };
+
+    const updateVariant = (index: number, field: string, value: string) => {
+        const newVariants = [...variants];
+        newVariants[index] = { ...newVariants[index], [field]: value };
+        setVariants(newVariants);
+    };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
 
         try {
-            const productData = {
+            // Step 1: Create product
+            const productData: any = {
                 title: formData.title,
                 description: formData.description,
                 price: parseInt(formData.price) * 100, // Convert to paise
@@ -354,9 +455,43 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
                 },
             };
 
-            await axios.post(API_ENDPOINTS.ADMIN_PRODUCTS, productData);
+            // Add variants if any
+            if (showAdvanced && variants.length > 0) {
+                productData.variants = variants.map((v) => ({
+                    sku: v.sku,
+                    size: v.size || null,
+                    color: v.color || null,
+                    price_modifier: parseInt(v.price_modifier) * 100,
+                    stock: parseInt(v.stock),
+                }));
+            }
+
+            const createResponse = await axios.post(API_ENDPOINTS.ADMIN_PRODUCTS, productData);
+            const productId = createResponse.data.id;
+
+            // Step 2: Upload images if any
+            if (showAdvanced && images.length > 0) {
+                const formData = new FormData();
+                images.forEach((image) => {
+                    formData.append('images', image);
+                });
+                formData.append('is_primary', primaryImageIndex === 0 ? 'true' : 'false');
+
+                await axios.post(
+                    `${API_ENDPOINTS.ADMIN_PRODUCTS}/${productId}/images`,
+                    formData,
+                    {
+                        headers: {
+                            'Content-Type': 'multipart/form-data',
+                        },
+                    }
+                );
+            }
+
             alert('Product created successfully!');
             onSuccess();
+
+            // Reset form
             setFormData({
                 title: '',
                 description: '',
@@ -365,6 +500,10 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
                 material: '',
                 weight: '',
             });
+            setVariants([]);
+            setImages([]);
+            setImagePreviews([]);
+            setShowAdvanced(false);
         } catch (error: any) {
             console.error('Failed to create product:', error);
             alert(error.response?.data?.error || 'Failed to create product');
@@ -374,12 +513,14 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
     };
 
     return (
-        <Modal show={show} onHide={onHide} size="lg" centered>
+        <Modal show={show} onHide={onHide} size="xl" centered scrollable>
             <Modal.Header closeButton>
                 <Modal.Title>Create New Product</Modal.Title>
             </Modal.Header>
-            <Modal.Body>
+            <Modal.Body style={{ maxHeight: '70vh', overflowY: 'auto' }}>
                 <Form onSubmit={handleSubmit}>
+                    {/* Basic Information */}
+                    <h5 className="mb-3">Basic Information</h5>
                     <Row>
                         <Col md={12}>
                             <Form.Group className="mb-3">
@@ -419,7 +560,7 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
                                     min="0"
                                     required
                                 />
-                                <Form.Text className="text-muted">Enter price in rupees</Form.Text>
+                                <Form.Text className="text-muted">Enter base price in rupees</Form.Text>
                             </Form.Group>
                         </Col>
 
@@ -463,19 +604,252 @@ const CreateProductModal: React.FC<CreateProductModalProps> = ({ show, onHide, o
                         </Col>
                     </Row>
 
+                    <hr className="my-4" />
+
+                    {/* Advanced Options Toggle */}
+                    <Form.Check
+                        type="switch"
+                        id="advanced-toggle"
+                        label="Add Images & Variants (Advanced)"
+                        checked={showAdvanced}
+                        onChange={(e) => setShowAdvanced(e.target.checked)}
+                        className="mb-3"
+                    />
+
+                    {showAdvanced && (
+                        <>
+                            {/* Image Upload */}
+                            <div className="mb-4">
+                                <h5 className="mb-3">Product Images</h5>
+                                <Form.Group className="mb-3">
+                                    <Form.Label className="fw-semibold">Upload Images</Form.Label>
+                                    <Form.Control
+                                        type="file"
+                                        multiple
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                    />
+                                    <Form.Text className="text-muted">
+                                        You can upload multiple images. Maximum 10 images.
+                                    </Form.Text>
+                                </Form.Group>
+
+                                {imagePreviews.length > 0 && (
+                                    <div>
+                                        <p className="fw-semibold mb-2">Preview:</p>
+                                        <div className="d-flex gap-2 flex-wrap">
+                                            {imagePreviews.map((preview, index) => (
+                                                <div
+                                                    key={index}
+                                                    style={{
+                                                        position: 'relative',
+                                                        width: '120px',
+                                                        height: '120px',
+                                                        border: primaryImageIndex === index ? '3px solid var(--primary)' : '1px solid var(--border)',
+                                                        borderRadius: '8px',
+                                                        overflow: 'hidden',
+                                                    }}
+                                                >
+                                                    <img
+                                                        src={preview}
+                                                        alt={`Preview ${index + 1}`}
+                                                        style={{
+                                                            width: '100%',
+                                                            height: '100%',
+                                                            objectFit: 'cover',
+                                                        }}
+                                                    />
+                                                    <div
+                                                        style={{
+                                                            position: 'absolute',
+                                                            top: 0,
+                                                            right: 0,
+                                                            display: 'flex',
+                                                            gap: '4px',
+                                                            padding: '4px',
+                                                        }}
+                                                    >
+                                                        {primaryImageIndex !== index && (
+                                                            <Button
+                                                                size="sm"
+                                                                variant="primary"
+                                                                onClick={() => setPrimaryImageIndex(index)}
+                                                                title="Set as primary"
+                                                                style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                                                            >
+                                                                ★
+                                                            </Button>
+                                                        )}
+                                                        <Button
+                                                            size="sm"
+                                                            variant="danger"
+                                                            onClick={() => removeImage(index)}
+                                                            style={{ padding: '2px 6px', fontSize: '0.7rem' }}
+                                                        >
+                                                            ✕
+                                                        </Button>
+                                                    </div>
+                                                    {primaryImageIndex === index && (
+                                                        <Badge
+                                                            bg="primary"
+                                                            style={{
+                                                                position: 'absolute',
+                                                                bottom: '4px',
+                                                                left: '4px',
+                                                                fontSize: '0.65rem',
+                                                            }}
+                                                        >
+                                                            Primary
+                                                        </Badge>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <hr className="my-4" />
+
+                            {/* Variants */}
+                            <div className="mb-4">
+                                <div className="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 className="mb-0">Product Variants</h5>
+                                    <Button variant="outline-primary" size="sm" onClick={addVariant}>
+                                        <svg
+                                            width="16"
+                                            height="16"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2"
+                                            className="me-1"
+                                        >
+                                            <line x1="12" y1="5" x2="12" y2="19" />
+                                            <line x1="5" y1="12" x2="19" y2="12" />
+                                        </svg>
+                                        Add Variant
+                                    </Button>
+                                </div>
+
+                                {variants.length === 0 ? (
+                                    <div className="text-center py-3 text-muted">
+                                        <small>No variants added. Click "Add Variant" to create one.</small>
+                                    </div>
+                                ) : (
+                                    <div className="d-flex flex-column gap-3">
+                                        {variants.map((variant, index) => (
+                                            <Card key={index} className="border">
+                                                <Card.Body>
+                                                    <div className="d-flex justify-content-between align-items-center mb-3">
+                                                        <strong>Variant #{index + 1}</strong>
+                                                        <Button
+                                                            variant="outline-danger"
+                                                            size="sm"
+                                                            onClick={() => removeVariant(index)}
+                                                        >
+                                                            Remove
+                                                        </Button>
+                                                    </div>
+                                                    <Row>
+                                                        <Col md={6}>
+                                                            <Form.Group className="mb-2">
+                                                                <Form.Label className="small">SKU *</Form.Label>
+                                                                <Form.Control
+                                                                    type="text"
+                                                                    size="sm"
+                                                                    value={variant.sku}
+                                                                    onChange={(e) => updateVariant(index, 'sku', e.target.value)}
+                                                                    placeholder="PROD-001"
+                                                                    required
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        <Col md={6}>
+                                                            <Form.Group className="mb-2">
+                                                                <Form.Label className="small">Stock *</Form.Label>
+                                                                <Form.Control
+                                                                    type="number"
+                                                                    size="sm"
+                                                                    value={variant.stock}
+                                                                    onChange={(e) => updateVariant(index, 'stock', e.target.value)}
+                                                                    placeholder="10"
+                                                                    min="0"
+                                                                    required
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        <Col md={4}>
+                                                            <Form.Group className="mb-2">
+                                                                <Form.Label className="small">Size</Form.Label>
+                                                                <Form.Control
+                                                                    type="text"
+                                                                    size="sm"
+                                                                    value={variant.size}
+                                                                    onChange={(e) => updateVariant(index, 'size', e.target.value)}
+                                                                    placeholder="M"
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        <Col md={4}>
+                                                            <Form.Group className="mb-2">
+                                                                <Form.Label className="small">Color</Form.Label>
+                                                                <Form.Control
+                                                                    type="text"
+                                                                    size="sm"
+                                                                    value={variant.color}
+                                                                    onChange={(e) => updateVariant(index, 'color', e.target.value)}
+                                                                    placeholder="Gold"
+                                                                />
+                                                            </Form.Group>
+                                                        </Col>
+                                                        <Col md={4}>
+                                                            <Form.Group className="mb-2">
+                                                                <Form.Label className="small">Price Modifier (₹)</Form.Label>
+                                                                <Form.Control
+                                                                    type="number"
+                                                                    size="sm"
+                                                                    value={variant.price_modifier}
+                                                                    onChange={(e) =>
+                                                                        updateVariant(index, 'price_modifier', e.target.value)
+                                                                    }
+                                                                    placeholder="0"
+                                                                />
+                                                                <Form.Text className="text-muted" style={{ fontSize: '0.7rem' }}>
+                                                                    +/- from base price
+                                                                </Form.Text>
+                                                            </Form.Group>
+                                                        </Col>
+                                                    </Row>
+                                                </Card.Body>
+                                            </Card>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    )}
+
                     <div className="alert alert-info">
                         <small>
-                            <strong>Note:</strong> After creating the product, you can add variants and images by
-                            editing the product or using the API directly.
+                            <strong>Tip:</strong> You can create a basic product first and add images/variants
+                            later, or enable "Advanced" mode to add everything at once.
                         </small>
                     </div>
 
                     <div className="d-flex gap-2 justify-content-end">
-                        <Button variant="secondary" onClick={onHide}>
+                        <Button variant="secondary" onClick={onHide} disabled={loading}>
                             Cancel
                         </Button>
                         <Button variant="primary" type="submit" disabled={loading}>
-                            {loading ? 'Creating...' : 'Create Product'}
+                            {loading ? (
+                                <>
+                                    <span className="spinner-border spinner-border-sm me-2" />
+                                    Creating...
+                                </>
+                            ) : (
+                                'Create Product'
+                            )}
                         </Button>
                     </div>
                 </Form>
