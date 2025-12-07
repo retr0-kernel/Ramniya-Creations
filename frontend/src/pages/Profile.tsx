@@ -187,33 +187,6 @@ const Profile: React.FC = () => {
                             </div>
                         </Card.Body>
                     </Card>
-
-                    {/* Quick Stats */}
-                    <Card className="border-0 shadow-sm mt-4">
-                        <Card.Body>
-                            <h6 className="mb-3">Quick Stats</h6>
-                            <div className="row text-center g-3">
-                                <div className="col-4">
-                                    <div className="p-3 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
-                                        <h4 className="mb-1 text-primary">0</h4>
-                                        <small className="text-muted">Orders</small>
-                                    </div>
-                                </div>
-                                <div className="col-4">
-                                    <div className="p-3 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
-                                        <h4 className="mb-1 text-primary">0</h4>
-                                        <small className="text-muted">Cart Items</small>
-                                    </div>
-                                </div>
-                                <div className="col-4">
-                                    <div className="p-3 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
-                                        <h4 className="mb-1 text-primary">₹0</h4>
-                                        <small className="text-muted">Total Spent</small>
-                                    </div>
-                                </div>
-                            </div>
-                        </Card.Body>
-                    </Card>
                 </Col>
             </Row>
         </Container>

@@ -224,32 +224,109 @@ img {
   transition: all $transition-base;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+
+  .navbar-brand {
+    transition: transform $transition-fast;
+
+    &:hover {
+      transform: translateY(-2px);
+    }
+
+    .brand-icon {
+      display: inline-block;
+      transition: transform $transition-fast;
+    }
+
+    &:hover .brand-icon {
+      transform: rotate(20deg) scale(1.1);
+    }
+  }
+
+  .navbar-toggler {
+    border-color: var(--border);
+    color: var(--text-primary);
+
+    &:focus {
+      box-shadow: 0 0 0 0.2rem rgba(var(--primary-rgb), 0.25);
+    }
+  }
 }
 
 .nav-link {
   color: var(--text-primary) !important;
   font-weight: $font-weight-medium;
-  transition: color $transition-fast;
+  transition: all $transition-fast;
   position: relative;
+  border-radius: $border-radius;
 
-  &::after {
-    content: '';
-    position: absolute;
-    bottom: -4px;
-    left: 0;
-    width: 0;
-    height: 2px;
-    background: var(--primary);
-    transition: width $transition-base;
+  &:hover {
+    color: var(--primary) !important;
+    background-color: var(--surface-hover);
+    transform: translateY(-1px);
   }
 
-  &:hover,
   &.active {
     color: var(--primary) !important;
+    background-color: var(--surface-hover);
+  }
 
-    &::after {
-      width: 100%;
+  svg {
+    transition: transform $transition-fast;
+  }
+
+  &:hover svg {
+    transform: scale(1.1);
+  }
+}
+
+// Avatar in navbar
+.avatar {
+  cursor: pointer;
+  transition: all $transition-fast;
+
+  &:hover {
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(212, 175, 55, 0.4) !important;
+  }
+}
+
+// Dropdown menu enhancements
+.navbar .dropdown-menu {
+  margin-top: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: $border-radius;
+  box-shadow: var(--shadow-lg);
+  animation: slideDown 0.2s ease-out;
+
+  .dropdown-item {
+    transition: all $transition-fast;
+    border-radius: $border-radius-sm;
+    margin: 0.15rem 0.5rem;
+    padding: 0.5rem 0.75rem;
+
+    &:hover {
+      background-color: var(--surface-hover);
+      transform: translateX(4px);
     }
+
+    svg {
+      transition: transform $transition-fast;
+    }
+
+    &:hover svg {
+      transform: scale(1.15);
+    }
+  }
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
   }
 }
 

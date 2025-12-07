@@ -28,7 +28,7 @@ const ProductDetail: React.FC = () => {
     }, [dispatch, id]);
 
     useEffect(() => {
-        if (product && product.variants.length > 0) {
+        if (product && product.variants && product.variants.length > 0) {
             setSelectedVariant(product.variants[0]);
         }
     }, [product]);
@@ -36,8 +36,8 @@ const ProductDetail: React.FC = () => {
     const handleAddToCart = () => {
         if (!product) return;
 
-        const variant = selectedVariant || product.variants[0];
-        const primaryImage = product.images.find((img) => img.is_primary) || product.images[0];
+        const variant = selectedVariant || (product.variants && product.variants[0]);
+        const primaryImage = product.images && (product.images.find((img) => img.is_primary) || product.images[0]);
 
         dispatch(
             addToCart({
@@ -71,7 +71,7 @@ const ProductDetail: React.FC = () => {
         <Container className="py-5">
             <Row>
                 <Col lg={6} className="mb-4 mb-lg-0">
-                    <ProductImageZoom images={product.images} title={product.title} />
+                    <ProductImageZoom images={product.images || []} title={product.title} />
                 </Col>
 
                 <Col lg={6}>
@@ -95,7 +95,7 @@ const ProductDetail: React.FC = () => {
                             <p className="text-muted mb-0">{product.description}</p>
                         </div>
 
-                        {product.variants.length > 0 && (
+                        {product && product.variants && product.variants.length > 0 && (
                             <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
                                 <VariantSelector
                                     variants={product.variants}
