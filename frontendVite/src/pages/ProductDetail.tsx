@@ -1,53 +1,66 @@
-import React, { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { Container, Row, Col, Button, Form, Badge } from 'react-bootstrap';
-import { useAppDispatch, useAppSelector } from '../app/hooks';
-import { fetchProductById } from '../features/products/productsSlice';
-import { addToCart } from '../features/cart/cartSlice';
-import VariantSelector from '../components/products/VariantSelector';
-import ProductImageZoom from '../components/products/ProductImageZoom';
-import Spinner from '../components/common/Spinner';
-import ErrorAlert from '../components/common/ErrorAlert';
-import { formatPrice } from '../utils/formatters';
-import { type ProductVariant } from '../types';
+import React, { useEffect, useState } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useAppDispatch, useAppSelector } from "../app/hooks";
+import { fetchProductById } from "../features/products/productsSlice";
+import { addToCart } from "../features/cart/cartSlice";
+import VariantSelector from "../components/products/VariantSelector";
+import ProductImageZoom from "../components/products/ProductImageZoom";
+import Spinner from "../components/common/Spinner";
+import ErrorAlert from "../components/common/ErrorAlert";
+import { formatPrice } from "../utils/formatters";
+import { type ProductVariant } from "../types";
 
 const ProductDetail: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const dispatch = useAppDispatch();
     const navigate = useNavigate();
-    const { currentProduct: product, loading, error } = useAppSelector((state) => state.products);
 
-    const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
+    const { currentProduct: product, loading, error } =
+        useAppSelector((state) => state.products);
+
+    const [selectedVariant, setSelectedVariant] =
+        useState<ProductVariant | null>(null);
     const [quantity, setQuantity] = useState(1);
     const [addedToCart, setAddedToCart] = useState(false);
 
     useEffect(() => {
-        if (id) {
-            dispatch(fetchProductById(id));
-        }
+        if (id) dispatch(fetchProductById(id));
     }, [dispatch, id]);
 
     useEffect(() => {
-        if (product && product.variants && product.variants.length > 0) {
+        if (product?.variants?.length) {
             setSelectedVariant(product.variants[0]);
         }
     }, [product]);
 
-    const handleAddToCart = () => {
-        if (!product) return;
+    if (loading) return <Spinner fullScreen />;
+    if (error) return <ErrorAlert error={error} />;
+    if (!product)
+        return (
+            <div className="min-h-screen flex items-center justify-center text-zinc-700 dark:text-zinc-300">
+                Product not found
+            </div>
+        );
 
-        const variant = selectedVariant || (product.variants && product.variants[0]);
-        const primaryImage = product.images && (product.images.find((img) => img.is_primary) || product.images[0]);
+    const currentPrice =
+        product.price + (selectedVariant?.price_modifier || 0);
+
+    const isOutOfStock = selectedVariant?.stock === 0;
+
+    const handleAddToCart = () => {
+        const variant = selectedVariant || product.variants?.[0];
+        const primaryImage =
+            product.images?.find((i) => i.is_primary) || product.images?.[0];
 
         dispatch(
             addToCart({
                 product_id: product.id,
                 variant_id: variant?.id,
                 title: product.title,
-                sku: variant?.sku || '',
+                sku: variant?.sku || "",
                 quantity,
-                price_cents: product.price + (variant?.price_modifier || 0),
-                image_url: primaryImage?.url || '/placeholder.jpg',
+                price_cents: currentPrice,
+                image_url: primaryImage?.url || "/placeholder.jpg",
             })
         );
 
@@ -57,176 +70,152 @@ const ProductDetail: React.FC = () => {
 
     const handleBuyNow = () => {
         handleAddToCart();
-        navigate('/cart');
+        navigate("/cart");
     };
 
-    if (loading) return <Spinner fullScreen />;
-    if (error) return <ErrorAlert error={error} />;
-    if (!product) return <div className="container py-5">Product not found</div>;
-
-    const currentPrice = product.price + (selectedVariant?.price_modifier || 0);
-    const isOutOfStock = selectedVariant ? selectedVariant.stock === 0 : false;
-
     return (
-        <Container className="py-5">
-            <Row>
-                <Col lg={6} className="mb-4 mb-lg-0">
-                    <ProductImageZoom images={product.images || []} title={product.title} />
-                </Col>
+        <main className="min-h-screen bg-zinc-50 dark:bg-black px-6 py-10">
+            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12">
 
-                <Col lg={6}>
-                    <div className="product-details">
-                        <h1 className="mb-3" style={{ fontFamily: 'Playfair Display, serif' }}>
-                            {product.title}
-                        </h1>
+                {/* IMAGE */}
+                <div className="rounded-3xl bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/10 shadow-xl p-6">
+                    <ProductImageZoom
+                        images={product.images || []}
+                        title={product.title}
+                    />
+                </div>
 
-                        <div className="d-flex align-items-center gap-3 mb-3">
-                            <div className="price" style={{ fontSize: '2rem' }}>
-                                {formatPrice(currentPrice)}
-                            </div>
-                            {selectedVariant && selectedVariant.price_modifier !== 0 && (
-                                <div className="price strike">
-                                    {formatPrice(product.price)}
-                                </div>
+                {/* DETAILS */}
+                <div className="space-y-6">
+
+                    {/* TITLE */}
+                    <h1 className="text-3xl md:text-4xl font-bold text-zinc-900 dark:text-zinc-100">
+                        {product.title}
+                    </h1>
+
+                    {/* PRICE */}
+                    <div className="flex items-end gap-4">
+            <span className="text-3xl font-bold text-amber-500">
+              {formatPrice(currentPrice)}
+            </span>
+
+                        {selectedVariant?.price_modifier !== 0 && (
+                            <span className="line-through text-zinc-400 text-lg">
+                {formatPrice(product.price)}
+              </span>
+                        )}
+                    </div>
+
+                    {/* DESCRIPTION */}
+                    <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                        {product.description}
+                    </p>
+
+                    {/* VARIANTS */}
+                    {product.variants?.length > 0 && (
+                        <div className="rounded-2xl bg-white dark:bg-zinc-900 border border-black/5 dark:border-white/10 shadow p-4 text-zinc-900 dark:text-zinc-100">
+                            <VariantSelector
+                                variants={product.variants}
+                                selectedVariant={selectedVariant}
+                                onSelect={setSelectedVariant}
+                            />
+                        </div>
+                    )}
+
+                    {/* QUANTITY */}
+                    <div>
+                        <p className="text-sm font-semibold text-zinc-700 dark:text-zinc-300 mb-2">
+                            Quantity
+                        </p>
+
+                        <div className="flex items-center gap-4">
+                            <button
+                                onClick={() => setQuantity(Math.max(1, quantity - 1))}
+                                disabled={quantity <= 1 || isOutOfStock}
+                                className="h-10 w-10 rounded-full border border-zinc-300 dark:border-white/10 text-lg text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                            >
+                                −
+                            </button>
+
+                            <span className="min-w-[40px] text-center font-semibold text-zinc-900 dark:text-zinc-100">
+                {quantity}
+              </span>
+
+                            <button
+                                onClick={() =>
+                                    setQuantity(
+                                        Math.min(selectedVariant?.stock || 99, quantity + 1)
+                                    )
+                                }
+                                disabled={isOutOfStock}
+                                className="h-10 w-10 rounded-full border border-zinc-300 dark:border-white/10 text-lg text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50"
+                            >
+                                +
+                            </button>
+
+                            {selectedVariant && (
+                                <span className="text-sm text-zinc-600 dark:text-zinc-400">
+                  {selectedVariant.stock} available
+                </span>
                             )}
                         </div>
+                    </div>
 
-                        <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                            <p className="text-muted mb-0">{product.description}</p>
+                    {/* CTA */}
+                    {isOutOfStock ? (
+                        <div className="rounded-xl bg-red-100 dark:bg-red-500/10 text-red-600 dark:text-red-400 px-4 py-3 text-center font-semibold">
+                            Out of Stock
                         </div>
+                    ) : (
+                        <div className="grid gap-3">
+                            <button
+                                onClick={handleBuyNow}
+                                className="w-full px-6 py-4 rounded-full bg-gradient-to-br from-zinc-900 via-black to-zinc-800 text-amber-300 font-bold shadow-xl hover:scale-[1.02] transition"
+                            >
+                                Buy Now
+                            </button>
 
-                        {product && product.variants && product.variants.length > 0 && (
-                            <div className="mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
-                                <VariantSelector
-                                    variants={product.variants}
-                                    selectedVariant={selectedVariant}
-                                    onSelect={setSelectedVariant}
-                                />
-                            </div>
-                        )}
+                            <button
+                                onClick={handleAddToCart}
+                                className="w-full px-6 py-4 rounded-full border border-zinc-300 dark:border-white/10 font-semibold text-zinc-900 dark:text-zinc-100 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition"
+                            >
+                                {addedToCart ? "✔ Added to Cart" : "Add to Cart"}
+                            </button>
+                        </div>
+                    )}
 
-                        <Form.Group className="mb-4">
-                            <Form.Label className="fw-semibold">Quantity</Form.Label>
-                            <div className="d-flex align-items-center gap-3">
-                                <Button
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={() => setQuantity(Math.max(1, quantity - 1))}
-                                    disabled={isOutOfStock || quantity <= 1}
-                                >
-                                    −
-                                </Button>
-                                <Form.Control
-                                    type="number"
-                                    min="1"
-                                    max={selectedVariant?.stock || 99}
-                                    value={quantity}
-                                    onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                                    style={{ width: '80px', textAlign: 'center' }}
-                                    disabled={isOutOfStock}
-                                />
-                                <Button
-                                    variant="outline-secondary"
-                                    size="sm"
-                                    onClick={() => setQuantity(Math.min(selectedVariant?.stock || 99, quantity + 1))}
-                                    disabled={isOutOfStock || quantity >= (selectedVariant?.stock || 99)}
-                                >
-                                    +
-                                </Button>
-                                {selectedVariant && (
-                                    <span className="text-muted small">
-                    {selectedVariant.stock} available
-                  </span>
-                                )}
-                            </div>
-                        </Form.Group>
-
-                        {isOutOfStock ? (
-                            <Badge bg="danger" className="mb-3 p-3 d-block text-center" style={{ fontSize: '1rem' }}>
-                                Out of Stock
-                            </Badge>
-                        ) : (
-                            <div className="d-grid gap-3 mb-4">
-                                <Button
-                                    variant="primary"
-                                    size="lg"
-                                    onClick={handleBuyNow}
-                                    disabled={isOutOfStock}
-                                >
-                                    Buy Now
-                                </Button>
-                                <Button
-                                    variant="outline-primary"
-                                    size="lg"
-                                    onClick={handleAddToCart}
-                                    disabled={isOutOfStock}
-                                >
-                                    {addedToCart ? (
-                                        <>
-                                            <svg
-                                                width="20"
-                                                height="20"
-                                                viewBox="0 0 24 24"
-                                                fill="none"
-                                                stroke="currentColor"
-                                                strokeWidth="2"
-                                                className="me-2"
-                                            >
-                                                <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                            Added to Cart
-                                        </>
-                                    ) : (
-                                        'Add to Cart'
-                                    )}
-                                </Button>
-                            </div>
-                        )}
-
-                        {product.metadata && Object.keys(product.metadata).length > 0 && (
-                            <div className="mt-4 p-4 rounded" style={{ backgroundColor: 'var(--surface-hover)' }}>
-                                <h5 className="mb-3">Product Details</h5>
-                                <ul className="list-unstyled mb-0">
-                                    {Object.entries(product.metadata).map(([key, value]) => (
-                                        <li key={key} className="mb-2 d-flex">
-                                            <strong className="text-capitalize me-2" style={{ minWidth: '120px' }}>
-                                                {key}:
-                                            </strong>
-                                            <span>{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
-
-                        {/* Features */}
-                        <div className="mt-4">
-                            <div className="row g-3">
-                                <div className="col-6">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
-                                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                                        </svg>
-                                        <small>Secure Payment</small>
-                                    </div>
-                                </div>
-                                <div className="col-6">
-                                    <div className="d-flex align-items-center gap-2">
-                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" strokeWidth="2">
-                                            <rect x="1" y="3" width="15" height="13" />
-                                            <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
-                                            <circle cx="5.5" cy="18.5" r="2.5" />
-                                            <circle cx="18.5" cy="18.5" r="2.5" />
-                                        </svg>
-                                        <small>Fast Delivery</small>
-                                    </div>
-                                </div>
-                            </div>
+                    {/* TRUST */}
+                    <div className="grid grid-cols-2 gap-4 pt-4">
+                        <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                            🔒 Secure Payment
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                            🚚 Fast Delivery
                         </div>
                     </div>
-                </Col>
-            </Row>
-        </Container>
+
+                    {/* METADATA */}
+                    {product.metadata && Object.keys(product.metadata).length > 0 && (
+                        <div className="rounded-2xl bg-zinc-100 dark:bg-zinc-900 border border-black/5 dark:border-white/10 p-4 text-zinc-900 dark:text-zinc-100">
+                            <h3 className="font-semibold mb-3">Product Details</h3>
+
+                            <ul className="space-y-2 text-sm">
+                                {Object.entries(product.metadata).map(([key, value]) => (
+                                    <li key={key} className="flex gap-2">
+                    <span className="font-medium capitalize min-w-[120px] text-zinc-700 dark:text-zinc-300">
+                      {key}
+                    </span>
+                                        <span className="text-zinc-600 dark:text-zinc-400">
+                      {String(value)}
+                    </span>
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </main>
     );
 };
 
