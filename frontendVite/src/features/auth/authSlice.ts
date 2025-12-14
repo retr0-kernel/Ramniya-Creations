@@ -18,12 +18,15 @@ interface AuthState {
     error: string | null;
 }
 
+const storedUser = localStorage.getItem('user');
+
 const initialState: AuthState = {
-    user: null,
-    isAuthenticated: false,
+    user: storedUser ? JSON.parse(storedUser) : null,
+    isAuthenticated: !!storedUser,
     loading: false,
     error: null,
 };
+
 
 // Login async thunk
 export const login = createAsyncThunk(
