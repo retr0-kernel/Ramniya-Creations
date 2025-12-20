@@ -4,6 +4,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks";
 import { fetchProducts } from "../features/products/productsSlice";
 import ProductGrid from "../components/products/ProductGrid";
 import Spinner from "../components/common/Spinner";
+import HeroCarousel from "../pages/HeroCarousel.tsx";
 
 const Home: React.FC = () => {
     const dispatch = useAppDispatch();
@@ -63,11 +64,11 @@ const Home: React.FC = () => {
                     </div>
 
                     {/* Visual */}
+                    {/* Visual */}
                     <div className="relative">
-                        <div className="aspect-square rounded-3xl bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center shadow-2xl">
-                            <span className="text-8xl">💍</span>
-                        </div>
+                        <HeroCarousel />
                     </div>
+
                 </div>
             </section>
 
@@ -111,12 +112,21 @@ const Home: React.FC = () => {
             <section className="py-24">
                 <div className="max-w-7xl mx-auto px-6">
                     <div className="text-center mb-12">
-                        <h2 className="text-3xl font-bold bg-gradient-to-r from-zinc-900 via-black to-zinc-900 dark:from-amber-300 dark:to-yellow-300 bg-clip-text text-transparent">
+                        <h2
+                            className="
+    text-3xl font-bold tracking-tight
+    text-zinc-900
+    dark:bg-gradient-to-r dark:from-amber-300 dark:to-yellow-300
+    dark:bg-clip-text dark:text-transparent
+  "
+                        >
                             Featured Products
                         </h2>
-                        <p className="text-zinc-500 mt-2">
+
+                        <p className="mt-2 text-zinc-600 dark:text-zinc-400">
                             Discover our latest handcrafted pieces
                         </p>
+
                     </div>
 
                     {loading ? (
