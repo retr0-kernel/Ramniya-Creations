@@ -1,6 +1,5 @@
-import React from 'react';
-import { Form, Badge } from 'react-bootstrap';
-import {type ProductVariant } from '../../types';
+import React from "react";
+import { ProductVariant } from "../../types";
 
 interface VariantSelectorProps {
     variants: ProductVariant[];
@@ -13,49 +12,65 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
                                                              selectedVariant,
                                                              onSelect,
                                                          }) => {
-    if (variants.length === 0) return null;
+    if (!variants.length) return null;
 
-    // Group variants by attribute keys
+    // Collect all attribute keys dynamically (size, color, etc.)
     const attributeKeys = Array.from(
-        new Set(variants.flatMap((v) => Object.keys(v.attributes)))
+        new Set(variants.flatMap((v) => Object.keys(v.attributes || {})))
     );
 
     return (
-        <div className="mb-4">
-            <h6 className="mb-3">Select Variant</h6>
+        <div className="space-y-6">
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                Select Variant
+            </h3>
 
             {attributeKeys.map((key) => {
-                const values = Array.from(new Set(variants.map((v) => v.attributes[key])));
+                const values = Array.from(
+                    new Set(variants.map((v) => v.attributes?.[key]))
+                );
 
                 return (
-                    <div key={key} className="mb-3">
-                        <Form.Label className="text-capitalize">{key}</Form.Label>
-                        <div className="d-flex flex-wrap gap-2">
+                    <div key={key} className="space-y-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+                            {key}
+                        </p>
+
+                        <div className="flex flex-wrap gap-2">
                             {values.map((value) => {
-                                const variant = variants.find((v) => v.attributes[key] === value);
-                                const isSelected = selectedVariant?.attributes[key] === value;
-                                const isOutOfStock = variant && variant.stock === 0;
+                                const variant = variants.find(
+                                    (v) => v.attributes?.[key] === value
+                                );
+
+                                if (!variant) return null;
+
+                                const isSelected =
+                                    selectedVariant?.attributes?.[key] === value;
+                                const isOutOfStock = variant.stock === 0;
 
                                 return (
-                                    <Badge
+                                    <button
                                         key={value}
-                                        bg={isSelected ? 'primary' : 'light'}
-                                        text={isSelected ? 'white' : 'dark'}
-                                        className={`p-2 ${!isOutOfStock ? 'cursor-pointer' : 'opacity-50'}`}
-                                        style={{
-                                            cursor: isOutOfStock ? 'not-allowed' : 'pointer',
-                                            fontSize: '0.9rem',
-                                            border: isSelected ? 'none' : '1px solid #dee2e6'
-                                        }}
-                                        onClick={() => {
-                                            if (!isOutOfStock && variant) {
-                                                onSelect(variant);
-                                            }
-                                        }}
+                                        disabled={isOutOfStock}
+                                        onClick={() => !isOutOfStock && onSelect(variant)}
+                                        className={`
+                      px-4 py-2 rounded-full text-sm font-medium
+                      transition-all duration-200
+                      border
+                      ${
+                                            isSelected
+                                                ? "bg-amber-400 text-black border-amber-400 shadow"
+                                                : "bg-zinc-100 dark:bg-zinc-800 text-zinc-800 dark:text-zinc-200 border-black/10 dark:border-white/10"
+                                        }
+                      ${
+                                            isOutOfStock
+                                                ? "opacity-40 cursor-not-allowed line-through"
+                                                : "hover:bg-amber-400/20 hover:border-amber-400"
+                                        }
+                    `}
                                     >
                                         {value}
-                                        {isOutOfStock && ' (Out of Stock)'}
-                                    </Badge>
+                                    </button>
                                 );
                             })}
                         </div>
@@ -64,10 +79,16 @@ const VariantSelector: React.FC<VariantSelectorProps> = ({
             })}
 
             {selectedVariant && (
-                <div className="mt-3">
-                    <small className="text-muted">
-                        SKU: {selectedVariant.sku} | Stock: {selectedVariant.stock} available
-                    </small>
+                <div className="rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-black/5 dark:border-white/10 p-3 text-xs text-zinc-600 dark:text-zinc-400">
+          <span className="font-medium text-zinc-800 dark:text-zinc-200">
+            SKU:
+          </span>{" "}
+                    {selectedVariant.sku}{" "}
+                    <span className="mx-2">•</span>
+                    <span className="font-medium text-zinc-800 dark:text-zinc-200">
+            Stock:
+          </span>{" "}
+                    {selectedVariant.stock} available
                 </div>
             )}
         </div>
